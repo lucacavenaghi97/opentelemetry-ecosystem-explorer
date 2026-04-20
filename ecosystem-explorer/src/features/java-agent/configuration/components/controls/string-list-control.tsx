@@ -16,10 +16,12 @@
 import { useCallback, useRef } from "react";
 import { Plus, X } from "lucide-react";
 import type { StringListNode } from "@/types/configuration";
+import { useConfigurationBuilder } from "@/hooks/use-configuration-builder";
 import { ControlWrapper } from "./control-wrapper";
 
 interface StringListControlProps {
   node: StringListNode;
+  path: string;
   value: string[] | null;
   onChange: (path: string, value: string[] | null) => void;
 }
@@ -27,9 +29,11 @@ interface StringListControlProps {
 const INPUT_CLASS =
   "w-full rounded-lg border border-border/60 bg-background/80 px-4 py-2 text-sm backdrop-blur-sm transition-all duration-200 placeholder:text-muted-foreground/50 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20";
 
-export function StringListControl({ node, value, onChange }: StringListControlProps) {
+export function StringListControl({ node, path, value, onChange }: StringListControlProps) {
   const items = value ?? [];
   const isNull = node.nullable === true && value === null;
+  const { state } = useConfigurationBuilder();
+  const error = state.validationErrors[path] ?? null;
   const { constraints } = node;
   const canAdd = !constraints?.maxItems || items.length < constraints.maxItems;
   const canRemove = !constraints?.minItems || items.length > constraints.minItems;
@@ -42,7 +46,7 @@ export function StringListControl({ node, value, onChange }: StringListControlPr
   }, []);
 
   const handleAdd = () => {
-    onChange(node.path, [...items, ""]);
+    onChange(path, [...items, ""]);
     requestAnimationFrame(() => {
       const inputs = listRef.current?.querySelectorAll("input");
       inputs?.item(inputs.length - 1)?.focus();
@@ -52,7 +56,7 @@ export function StringListControl({ node, value, onChange }: StringListControlPr
 
   const handleRemove = (index: number) => {
     onChange(
-      node.path,
+      path,
       items.filter((_, i) => i !== index)
     );
     requestAnimationFrame(() => {
@@ -71,8 +75,9 @@ export function StringListControl({ node, value, onChange }: StringListControlPr
     <ControlWrapper
       node={node}
       isNull={isNull}
-      onClear={() => onChange(node.path, null)}
-      onActivate={() => onChange(node.path, [])}
+      error={error}
+      onClear={() => onChange(path, null)}
+      onActivate={() => onChange(path, [])}
     >
       <div className="space-y-2">
         <span ref={statusRef} className="sr-only" aria-live="polite" />
@@ -83,15 +88,15 @@ export function StringListControl({ node, value, onChange }: StringListControlPr
               type="button"
               onClick={handleAdd}
               aria-label={`Add item to ${node.label}`}
-              className="flex items-center gap-1 rounded-md border border-border/60 bg-background/80 px-3 py-1.5 text-xs text-muted-foreground transition-all hover:border-primary/40 hover:text-foreground"
+              className="flex items-center gap-1 rounded-md border border-border/60 bg-background/80 px-3 py-1.5 text-xs text-foreground transition-all hover:border-primary/40"
             >
-              <Plus className="h-3 w-3" aria-hidden="true" />
+              <Plus className="h-3 w-3 text-primary" aria-hidden="true" />
               Add
             </button>
           )}
         </div>
         {items.length === 0 ? (
-          <p className="text-xs text-muted-foreground/70">No items</p>
+          <p className="text-xs text-muted-foreground">No items</p>
         ) : (
           <ul ref={listRef} className="space-y-2" aria-label={`${node.label} items`}>
             {items.map((item, index) => (
@@ -103,7 +108,7 @@ export function StringListControl({ node, value, onChange }: StringListControlPr
                   onChange={(e) => {
                     const next = [...items];
                     next[index] = e.target.value;
-                    onChange(node.path, next);
+                    onChange(path, next);
                   }}
                   className={INPUT_CLASS}
                 />
@@ -121,16 +126,6 @@ export function StringListControl({ node, value, onChange }: StringListControlPr
             ))}
           </ul>
         )}
-        {constraints &&
-          (constraints.minItems !== undefined || constraints.maxItems !== undefined) && (
-            <p className="text-xs text-muted-foreground/70">
-              {constraints.minItems !== undefined && constraints.maxItems !== undefined
-                ? `${constraints.minItems}–${constraints.maxItems} items`
-                : constraints.minItems !== undefined
-                  ? `At least ${constraints.minItems} items`
-                  : `Up to ${constraints.maxItems} items`}
-            </p>
-          )}
       </div>
     </ControlWrapper>
   );

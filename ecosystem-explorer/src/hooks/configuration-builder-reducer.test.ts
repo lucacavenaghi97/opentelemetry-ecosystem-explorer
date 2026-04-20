@@ -261,4 +261,64 @@ describe("configurationBuilderReducer", () => {
       expect(result.validationErrors).toEqual({ other: "Error" });
     });
   });
+
+  describe("SET_ENABLED null-leftover predicate", () => {
+    it("populates defaults when the section value is null", () => {
+      const initial: ConfigurationBuilderState = {
+        version: "1.0.0",
+        values: { resource: null },
+        enabledSections: {},
+        validationErrors: {},
+        isDirty: false,
+      };
+      const next = configurationBuilderReducer(initial, {
+        type: "SET_ENABLED",
+        section: "resource",
+        enabled: true,
+        defaults: { attributes: [] },
+      });
+      expect(next.values.resource).toEqual({ attributes: [] });
+      expect(next.enabledSections.resource).toBe(true);
+    });
+  });
+
+  describe("ENABLE_ALL_SECTIONS", () => {
+    it("enables every section and populates defaults for empty ones", () => {
+      const initial: ConfigurationBuilderState = {
+        version: "1.0.0",
+        values: { resource: { attributes: [{ name: "service.name", value: "svc" }] } },
+        enabledSections: { resource: true },
+        validationErrors: {},
+        isDirty: false,
+      };
+      const next = configurationBuilderReducer(initial, {
+        type: "ENABLE_ALL_SECTIONS",
+        defaultsBySection: {
+          resource: { attributes: [] },
+          tracer_provider: { processors: [] },
+        },
+      });
+      expect(next.enabledSections).toEqual({ resource: true, tracer_provider: true });
+      expect(next.values.resource).toEqual({
+        attributes: [{ name: "service.name", value: "svc" }],
+      });
+      expect(next.values.tracer_provider).toEqual({ processors: [] });
+      expect(next.isDirty).toBe(true);
+    });
+
+    it("leaves isDirty false when no section changed", () => {
+      const initial: ConfigurationBuilderState = {
+        version: "1.0.0",
+        values: { resource: {}, tracer_provider: {} },
+        enabledSections: { resource: true, tracer_provider: true },
+        validationErrors: {},
+        isDirty: false,
+      };
+      const next = configurationBuilderReducer(initial, {
+        type: "ENABLE_ALL_SECTIONS",
+        defaultsBySection: { resource: {}, tracer_provider: {} },
+      });
+      expect(next.isDirty).toBe(false);
+    });
+  });
 });

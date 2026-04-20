@@ -15,12 +15,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { useConfigVersions, useConfigSchema } from "./use-configuration-data";
+import { useConfigVersions, useConfigSchema, useConfigStarter } from "./use-configuration-data";
 import type { ConfigVersionsIndex, GroupNode } from "@/types/configuration";
 
 vi.mock("@/lib/api/configuration-data", () => ({
   loadConfigVersions: vi.fn(),
   loadConfigSchema: vi.fn(),
+  loadConfigStarter: vi.fn(),
 }));
 
 import * as configData from "@/lib/api/configuration-data";
@@ -178,5 +179,29 @@ describe("useConfigSchema", () => {
 
     expect(result.current.data).toBeNull();
     expect(result.current.error).toEqual(new Error("Schema not found"));
+  });
+});
+
+describe("useConfigStarter", () => {
+  it("resolves to the parsed starter", async () => {
+    vi.mocked(configData.loadConfigStarter).mockResolvedValue({
+      enabledSections: { resource: true },
+      values: { resource: {} },
+    });
+    const { result } = renderHook(() => useConfigStarter("1.0.0"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.data).toEqual({
+      enabledSections: { resource: true },
+      values: { resource: {} },
+    });
+    expect(result.current.error).toBeNull();
+  });
+
+  it("resolves to null when the loader resolves null (404)", async () => {
+    vi.mocked(configData.loadConfigStarter).mockResolvedValue(null);
+    const { result } = renderHook(() => useConfigStarter("1.0.0"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.data).toBeNull();
+    expect(result.current.error).toBeNull();
   });
 });

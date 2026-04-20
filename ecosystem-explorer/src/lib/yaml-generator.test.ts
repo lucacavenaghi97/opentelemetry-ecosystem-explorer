@@ -126,7 +126,7 @@ describe("generateYaml", () => {
     expect(output).not.toContain("legacy_thing");
   });
 
-  it("emits enabled groups with values, omits enabled groups that strip to empty", () => {
+  it("emits enabled groups with values, emits empty object for enabled groups that strip to empty", () => {
     const schema: ConfigNode = {
       controlType: "group",
       key: "root",
@@ -168,7 +168,7 @@ describe("generateYaml", () => {
 
     expect(output).toContain("filled_section:");
     expect(output).toContain("setting: value");
-    expect(output).not.toContain("empty_section:");
+    expect(output).toMatch(/^empty_section: \{\}$/m);
   });
 
   it("omits groups with enabledSections[key] !== true", () => {
@@ -282,7 +282,7 @@ describe("generateYaml", () => {
     expect(output).not.toMatch(/\bd:/);
   });
 
-  it("preserves plugin_select discriminator inside list, omits empty group at top level", () => {
+  it("preserves plugin_select discriminator inside list, emits empty object for empty group at top level", () => {
     const schema: ConfigNode = {
       controlType: "group",
       key: "root",
@@ -328,7 +328,7 @@ describe("generateYaml", () => {
     expect(output).toContain("processors:");
     expect(output).toMatch(/- batch:\s*\{\s*\}/);
 
-    expect(output).not.toContain("empty_provider:");
+    expect(output).toMatch(/^empty_provider: \{\}$/m);
   });
 
   it("preserves standalone plugin_select discriminator with null value", () => {
@@ -439,5 +439,76 @@ describe("generateYaml", () => {
     expect(output).toMatch(/always_on:\s*(null|~)?/);
     expect(output).toMatch(/- tracecontext:\s*(null|~)?/);
     expect(output).toMatch(/- baggage:\s*(null|~)?/);
+  });
+
+  it("emits empty object for enabled top-level group with stripped body", () => {
+    const schema: ConfigNode = {
+      controlType: "group",
+      key: "root",
+      label: "Root",
+      path: "",
+      children: [
+        {
+          controlType: "text_input",
+          key: "file_format",
+          label: "File Format",
+          path: "file_format",
+          required: true,
+        },
+        {
+          controlType: "group",
+          key: "resource",
+          label: "Resource",
+          path: "resource",
+          children: [
+            {
+              controlType: "text_input",
+              key: "name",
+              label: "Name",
+              path: "resource.name",
+              nullable: true,
+            },
+          ],
+        },
+      ],
+    };
+    const state: ConfigurationBuilderState = {
+      version: "1.0.0",
+      values: { resource: { name: null } },
+      enabledSections: { resource: true },
+      validationErrors: {},
+      isDirty: false,
+    };
+    const out = generateYaml(state, schema);
+    expect(out).toMatch(/^resource: \{\}$/m);
+  });
+
+  it("skips disabled top-level group even if it has values", () => {
+    const schema: ConfigNode = {
+      controlType: "group",
+      key: "root",
+      label: "Root",
+      path: "",
+      children: [
+        {
+          controlType: "group",
+          key: "resource",
+          label: "Resource",
+          path: "resource",
+          children: [
+            { controlType: "text_input", key: "name", label: "Name", path: "resource.name" },
+          ],
+        },
+      ],
+    };
+    const state: ConfigurationBuilderState = {
+      version: "1.0.0",
+      values: { resource: { name: "svc" } },
+      enabledSections: { resource: false },
+      validationErrors: {},
+      isDirty: false,
+    };
+    const out = generateYaml(state, schema);
+    expect(out).not.toMatch(/resource:/);
   });
 });

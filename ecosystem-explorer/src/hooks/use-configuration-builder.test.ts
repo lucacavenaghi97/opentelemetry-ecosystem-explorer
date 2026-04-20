@@ -16,7 +16,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useConfigurationBuilderState } from "./use-configuration-builder";
-import type { GroupNode, NumberInputNode, TextInputNode } from "@/types/configuration";
+import type {
+  ConfigNode,
+  ConfigStarter,
+  GroupNode,
+  NumberInputNode,
+  TextInputNode,
+} from "@/types/configuration";
 
 const STORAGE_KEY = "otel-config-builder-state-v1";
 
@@ -63,13 +69,13 @@ afterEach(() => {
 
 describe("useConfigurationBuilderState", () => {
   it("should initialize with empty state", () => {
-    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
     expect(result.current.state.values).toEqual({});
     expect(result.current.state.isDirty).toBe(false);
   });
 
   it("should set a value", () => {
-    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
     act(() => {
       result.current.setValue("file_format", "1.0");
     });
@@ -78,7 +84,7 @@ describe("useConfigurationBuilderState", () => {
   });
 
   it("should enable a section with defaults", () => {
-    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
     act(() => {
       result.current.setEnabled("attribute_limits", true);
     });
@@ -87,7 +93,7 @@ describe("useConfigurationBuilderState", () => {
   });
 
   it("should reset to defaults", () => {
-    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
     act(() => {
       result.current.setValue("file_format", "1.0");
       result.current.resetToDefaults();
@@ -97,20 +103,20 @@ describe("useConfigurationBuilderState", () => {
   });
 
   it("should validate a field", () => {
-    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
     const error = result.current.validateField("file_format");
     expect(error).toBe("Required");
   });
 
   it("should validate all fields", () => {
-    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
     const validation = result.current.validateAll();
     expect(validation.valid).toBe(false);
     expect(validation.errors.file_format).toBe("Required");
   });
 
   it("should auto-clear validation error on setValue", () => {
-    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
     act(() => {
       result.current.validateAll();
     });
@@ -122,7 +128,7 @@ describe("useConfigurationBuilderState", () => {
   });
 
   it("should clear validation error explicitly", () => {
-    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
     act(() => {
       result.current.validateAll();
     });
@@ -134,7 +140,7 @@ describe("useConfigurationBuilderState", () => {
   });
 
   it("should leave other errors untouched when clearing one", () => {
-    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+    const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
     act(() => {
       result.current.setEnabled("attribute_limits", true);
     });
@@ -157,47 +163,9 @@ describe("useConfigurationBuilderState", () => {
     ).toBeUndefined();
   });
 
-  it("should reset state when version changes", () => {
-    const { result, rerender } = renderHook(
-      ({ version }) => useConfigurationBuilderState(mockSchema, version),
-      { initialProps: { version: "1.0.0" } }
-    );
-
-    act(() => {
-      result.current.setValue("file_format", "1.0");
-    });
-    expect(result.current.state.values.file_format).toBe("1.0");
-
-    rerender({ version: "2.0.0" });
-
-    expect(result.current.state.values).toEqual({});
-    expect(result.current.state.version).toBe("2.0.0");
-  });
-
-  it("should not persist stale state under new version key after switch", () => {
-    const { result, rerender } = renderHook(
-      ({ version }) => useConfigurationBuilderState(mockSchema, version),
-      { initialProps: { version: "1.0.0" } }
-    );
-
-    act(() => {
-      result.current.setValue("file_format", "1.0");
-    });
-    rerender({ version: "2.0.0" });
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
-
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const saved = JSON.parse(raw);
-      expect(saved.state.values).toEqual({});
-    }
-  });
-
   describe("loadFromYaml", () => {
     it("should populate state from valid YAML", async () => {
-      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
       vi.useRealTimers();
       await act(async () => {
         await result.current.loadFromYaml(
@@ -209,7 +177,7 @@ describe("useConfigurationBuilderState", () => {
     });
 
     it("should throw a controlled error on invalid YAML", async () => {
-      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
       vi.useRealTimers();
       await expect(result.current.loadFromYaml("key: value\n  bad indent: x")).rejects.toThrow(
         /Failed to parse YAML/
@@ -217,7 +185,7 @@ describe("useConfigurationBuilderState", () => {
     });
 
     it("should ignore non-object YAML", async () => {
-      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
       vi.useRealTimers();
       await act(async () => {
         await result.current.loadFromYaml("just a string");
@@ -228,7 +196,7 @@ describe("useConfigurationBuilderState", () => {
 
   describe("localStorage persistence", () => {
     it("should save to localStorage after debounce", () => {
-      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
       act(() => {
         result.current.setValue("file_format", "1.0");
       });
@@ -254,7 +222,7 @@ describe("useConfigurationBuilderState", () => {
           },
         })
       );
-      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
       expect(result.current.state.values.file_format).toBe("1.0");
     });
 
@@ -272,8 +240,117 @@ describe("useConfigurationBuilderState", () => {
           },
         })
       );
-      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0"));
+      const { result } = renderHook(() => useConfigurationBuilderState(mockSchema, "1.0.0", null));
       expect(result.current.state.values).toEqual({});
     });
+  });
+
+  it("resetToDefaults with starter hydrates from starter", () => {
+    const schema: ConfigNode = {
+      controlType: "group",
+      key: "root",
+      label: "Root",
+      path: "",
+      children: [
+        {
+          controlType: "group",
+          key: "resource",
+          label: "Resource",
+          path: "resource",
+          children: [],
+        },
+      ],
+    };
+    const starter: ConfigStarter = {
+      enabledSections: { resource: true },
+      values: { resource: { attributes: [] } },
+    };
+    const { result } = renderHook(() => useConfigurationBuilderState(schema, "1.0.0", starter));
+    act(() => result.current.setEnabled("resource", false));
+    expect(result.current.state.enabledSections.resource).toBe(false);
+    act(() => result.current.resetToDefaults());
+    expect(result.current.state.enabledSections.resource).toBe(true);
+    expect(result.current.state.values.resource).toEqual({ attributes: [] });
+  });
+
+  it("enableAllSections enables every top-level group child", () => {
+    const schema: ConfigNode = {
+      controlType: "group",
+      key: "root",
+      label: "Root",
+      path: "",
+      children: [
+        {
+          controlType: "group",
+          key: "resource",
+          label: "Resource",
+          path: "resource",
+          children: [],
+        },
+        {
+          controlType: "group",
+          key: "tracer_provider",
+          label: "TracerProvider",
+          path: "tracer_provider",
+          children: [],
+        },
+        {
+          controlType: "text_input",
+          key: "file_format",
+          label: "File Format",
+          path: "file_format",
+        },
+      ],
+    };
+    const { result } = renderHook(() => useConfigurationBuilderState(schema, "1.0.0", null));
+    act(() => result.current.enableAllSections());
+    expect(result.current.state.enabledSections.resource).toBe(true);
+    expect(result.current.state.enabledSections.tracer_provider).toBe(true);
+    expect(result.current.state.enabledSections.file_format).toBeUndefined();
+  });
+
+  it("selectPlugin works for a plugin_select inside a list item", () => {
+    const schema: ConfigNode = {
+      controlType: "group",
+      key: "root",
+      label: "Root",
+      path: "",
+      children: [
+        {
+          controlType: "list",
+          key: "processors",
+          label: "Processors",
+          path: "processors",
+          itemSchema: {
+            controlType: "plugin_select",
+            key: "item",
+            label: "Item",
+            path: "processors.item",
+            allowCustom: false,
+            options: [
+              {
+                controlType: "group",
+                key: "batch",
+                label: "Batch",
+                path: "processors.item.batch",
+                children: [],
+              },
+              {
+                controlType: "group",
+                key: "simple",
+                label: "Simple",
+                path: "processors.item.simple",
+                children: [],
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const { result } = renderHook(() => useConfigurationBuilderState(schema, "1.0.0", null));
+    act(() => result.current.addListItem("processors"));
+    expect(result.current.state.values.processors).toEqual([{ batch: {} }]);
+    act(() => result.current.selectPlugin("processors[0]", "simple"));
+    expect((result.current.state.values.processors as unknown[])[0]).toEqual({ simple: {} });
   });
 });

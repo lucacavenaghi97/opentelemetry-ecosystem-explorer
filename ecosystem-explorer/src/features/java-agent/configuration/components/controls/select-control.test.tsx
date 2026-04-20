@@ -13,10 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { SelectControl } from "./select-control";
 import type { SelectNode } from "@/types/configuration";
+
+const validateField = vi.fn();
+let mockValidationErrors: Record<string, string> = {};
+
+vi.mock("@/hooks/use-configuration-builder", () => ({
+  useConfigurationBuilder: () => ({
+    state: {
+      values: {},
+      enabledSections: {},
+      validationErrors: mockValidationErrors,
+      version: "1.0.0",
+      isDirty: false,
+    },
+    validateField,
+    setValue: vi.fn(),
+  }),
+}));
 
 const node: SelectNode = {
   controlType: "select",
@@ -30,49 +47,73 @@ const node: SelectNode = {
 };
 
 describe("SelectControl", () => {
+  beforeEach(() => {
+    validateField.mockReset();
+    mockValidationErrors = {};
+  });
+
   it("renders all enum options", () => {
-    render(<SelectControl node={node} value="none" onChange={vi.fn()} />);
+    render(<SelectControl node={node} path={node.path} value="none" onChange={vi.fn()} />);
     expect(screen.getByRole("option", { name: "none" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "gzip" })).toBeInTheDocument();
   });
 
   it("renders with selected value", () => {
-    render(<SelectControl node={node} value="gzip" onChange={vi.fn()} />);
+    render(<SelectControl node={node} path={node.path} value="gzip" onChange={vi.fn()} />);
     expect(screen.getByRole("combobox")).toHaveValue("gzip");
   });
 
   it("calls onChange with path and selected value", () => {
     const onChange = vi.fn();
-    render(<SelectControl node={node} value="none" onChange={onChange} />);
+    render(<SelectControl node={node} path={node.path} value="none" onChange={onChange} />);
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "gzip" } });
     expect(onChange).toHaveBeenCalledWith("exporter.compression", "gzip");
   });
 
   it("includes a default option when nullable", () => {
     const nullableNode = { ...node, nullable: true, defaultBehavior: "No compression" };
-    render(<SelectControl node={nullableNode} value={null} onChange={vi.fn()} />);
+    render(
+      <SelectControl node={nullableNode} path={nullableNode.path} value={null} onChange={vi.fn()} />
+    );
     expect(screen.getByRole("option", { name: "No compression" })).toBeInTheDocument();
   });
 
   it("calls onChange with null when default option selected on nullable field", () => {
     const onChange = vi.fn();
     const nullableNode = { ...node, nullable: true };
-    render(<SelectControl node={nullableNode} value="gzip" onChange={onChange} />);
+    render(
+      <SelectControl
+        node={nullableNode}
+        path={nullableNode.path}
+        value="gzip"
+        onChange={onChange}
+      />
+    );
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "" } });
     expect(onChange).toHaveBeenCalledWith("exporter.compression", null);
   });
 
   it("renders label from ControlWrapper", () => {
-    render(<SelectControl node={node} value="none" onChange={vi.fn()} />);
+    render(<SelectControl node={node} path={node.path} value="none" onChange={vi.fn()} />);
     expect(screen.getByText("Compression")).toBeInTheDocument();
   });
 
   it("links description to select via aria-describedby", () => {
     const nodeWithDesc = { ...node, description: "Compression algorithm" };
-    render(<SelectControl node={nodeWithDesc} value="none" onChange={vi.fn()} />);
+    render(
+      <SelectControl node={nodeWithDesc} path={nodeWithDesc.path} value="none" onChange={vi.fn()} />
+    );
     const select = screen.getByRole("combobox");
     const descId = select.getAttribute("aria-describedby");
     expect(descId).toBeTruthy();
     expect(document.getElementById(descId!)).toHaveTextContent("Compression algorithm");
+  });
+
+  it("calls validateField on blur and renders the error from state", () => {
+    mockValidationErrors = { [node.path]: "Required" };
+    render(<SelectControl node={node} path={node.path} value="none" onChange={vi.fn()} />);
+    fireEvent.blur(screen.getByRole("combobox"));
+    expect(validateField).toHaveBeenCalledWith(node.path);
+    expect(screen.getByRole("alert")).toHaveTextContent("Required");
   });
 });

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import { useMemo, type ReactNode } from "react";
-import type { ConfigNode } from "@/types/configuration";
+import type { ConfigNode, ConfigStarter } from "@/types/configuration";
 import {
   useConfigurationBuilderState,
   ConfigStateContext,
@@ -24,28 +24,22 @@ import {
 interface ConfigurationBuilderProviderProps {
   schema: ConfigNode;
   version: string;
+  starter: ConfigStarter | null;
   children: ReactNode;
 }
 
 export function ConfigurationBuilderProvider({
   schema,
   version,
+  starter,
   children,
 }: ConfigurationBuilderProviderProps) {
-  const { state, ...actions } = useConfigurationBuilderState(schema, version);
-
+  const { state, actions } = useConfigurationBuilderState(schema, version, starter);
   const stateValue = useMemo(() => ({ state }), [state]);
-  const actionsValue = useMemo(
-    () => actions,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
 
   return (
     <ConfigStateContext.Provider value={stateValue}>
-      <ConfigDispatchContext.Provider value={actionsValue}>
-        {children}
-      </ConfigDispatchContext.Provider>
+      <ConfigDispatchContext.Provider value={actions}>{children}</ConfigDispatchContext.Provider>
     </ConfigStateContext.Provider>
   );
 }

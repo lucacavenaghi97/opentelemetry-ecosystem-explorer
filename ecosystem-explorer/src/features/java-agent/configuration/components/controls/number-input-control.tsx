@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 import type { ChangeEvent } from "react";
-import { useId } from "react";
+import { useId, useRef, useState } from "react";
 import type { NumberInputNode } from "@/types/configuration";
+import { useConfigurationBuilder } from "@/hooks/use-configuration-builder";
 import { ControlWrapper } from "./control-wrapper";
 
 interface NumberInputControlProps {
   node: NumberInputNode;
+  path: string;
   value: number | null;
   onChange: (path: string, value: number | null) => void;
 }
@@ -27,28 +29,37 @@ interface NumberInputControlProps {
 const INPUT_CLASS =
   "w-full rounded-lg border border-border/60 bg-background/80 px-4 py-2.5 text-sm backdrop-blur-sm transition-all duration-200 placeholder:text-muted-foreground/50 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20";
 
-export function NumberInputControl({ node, value, onChange }: NumberInputControlProps) {
+export function NumberInputControl({ node, path, value, onChange }: NumberInputControlProps) {
   const id = useId();
   const descId = useId();
   const isNull = node.nullable === true && value === null;
+  const { state, validateField } = useConfigurationBuilder();
+  const error = state.validationErrors[path] ?? null;
   const { constraints } = node;
-  const hasExclusiveMin =
-    constraints?.exclusiveMinimum !== undefined && constraints?.minimum === undefined;
-  const hasExclusiveMax =
-    constraints?.exclusiveMaximum !== undefined && constraints?.maximum === undefined;
   const min = constraints?.minimum ?? constraints?.exclusiveMinimum;
   const max = constraints?.maximum ?? constraints?.exclusiveMaximum;
 
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState<string>(() => (value === null ? "" : String(value)));
+  const [prevValue, setPrevValue] = useState<number | null>(value);
+
+  if (prevValue !== value) {
+    setPrevValue(value);
+    const next = value === null ? "" : String(value);
+    if (draft === "" || parseFloat(draft) !== value) setDraft(next);
+  }
+
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    if (raw === "") {
-      onChange(node.path, 0);
-      return;
-    }
+    setDraft(raw);
+    if (raw === "") return;
     const num = parseFloat(raw);
-    if (!isNaN(num)) {
-      onChange(node.path, num);
-    }
+    if (Number.isFinite(num)) onChange(path, num);
+  };
+
+  const handleBlur = () => {
+    if (draft === "" && value !== null) setDraft(String(value));
+    validateField(path);
   };
 
   return (
@@ -57,36 +68,33 @@ export function NumberInputControl({ node, value, onChange }: NumberInputControl
       inputId={id}
       descriptionId={node.description ? descId : undefined}
       isNull={isNull}
-      onClear={() => onChange(node.path, null)}
-      onActivate={() => onChange(node.path, 0)}
+      error={error}
+      onClear={() => onChange(path, null)}
+      onActivate={() => {
+        onChange(path, 0);
+        requestAnimationFrame(() => {
+          const el = inputRef.current;
+          if (el) {
+            el.focus();
+            el.select();
+          }
+        });
+      }}
     >
-      <div className="space-y-1">
-        <input
-          id={id}
-          type="number"
-          value={value ?? ""}
-          min={min}
-          max={max}
-          placeholder={node.defaultBehavior ?? ""}
-          aria-describedby={node.description ? descId : undefined}
-          aria-required={node.required || undefined}
-          onChange={handleChange}
-          className={INPUT_CLASS}
-        />
-        {(min !== undefined || max !== undefined) && (
-          <p className="text-xs text-muted-foreground/70">
-            {min !== undefined && max !== undefined
-              ? `Range: ${hasExclusiveMin ? ">" : ""}${min}–${hasExclusiveMax ? "<" : ""}${max}`
-              : min !== undefined
-                ? hasExclusiveMin
-                  ? `Greater than ${min}`
-                  : `Minimum: ${min}`
-                : hasExclusiveMax
-                  ? `Less than ${max}`
-                  : `Maximum: ${max}`}
-          </p>
-        )}
-      </div>
+      <input
+        id={id}
+        type="number"
+        value={draft}
+        min={min}
+        max={max}
+        placeholder={node.defaultBehavior ?? ""}
+        ref={inputRef}
+        aria-describedby={node.description ? descId : undefined}
+        aria-required={node.required || undefined}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        className={INPUT_CLASS}
+      />
     </ControlWrapper>
   );
 }

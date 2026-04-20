@@ -13,99 +13,112 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { useMemo, useState } from "react";
 import { BackButton } from "@/components/ui/back-button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { VersionSelector } from "@/features/java-agent/components/version-selector";
+import {
+  useConfigVersions,
+  useConfigSchema,
+  useConfigStarter,
+} from "@/hooks/use-configuration-data";
+import { ConfigurationBuilderProvider } from "@/hooks/configuration-builder-provider";
+import type { GroupNode } from "@/types/configuration";
+import { SchemaRenderer } from "./components/schema-renderer";
+import { PreviewCard } from "./components/preview-card";
+
+function SdkTab({ version }: { version: string }) {
+  const schema = useConfigSchema(version);
+  const starter = useConfigStarter(version);
+
+  if (schema.loading || starter.loading) {
+    return <p className="mt-4 text-sm text-muted-foreground">Loading schema…</p>;
+  }
+  if (schema.error || !schema.data) {
+    return <p className="mt-4 text-sm text-red-400">Failed to load schema.</p>;
+  }
+  if (starter.error) {
+    return <p className="mt-4 text-sm text-red-400">Failed to load starter template.</p>;
+  }
+
+  const root = schema.data as GroupNode;
+  const visibleChildren = root.children.filter((c) => c.key !== "file_format");
+  const groupChildren = visibleChildren.filter((c) => c.controlType === "group");
+  const leafChildren = visibleChildren.filter((c) => c.controlType !== "group");
+
+  return (
+    <ConfigurationBuilderProvider
+      key={version}
+      schema={schema.data}
+      version={version}
+      starter={starter.data}
+    >
+      <div className="mt-4 grid gap-6 md:grid-cols-2">
+        <div className="space-y-4">
+          {leafChildren.length > 0 && (
+            <section className="rounded-xl border border-border/50 bg-card/40 p-5 space-y-3">
+              <h3 className="text-base font-semibold text-foreground">General</h3>
+              {leafChildren.map((child) => (
+                <SchemaRenderer key={child.key} node={child} depth={1} path={child.key} />
+              ))}
+            </section>
+          )}
+          {groupChildren.map((child) => (
+            <SchemaRenderer key={child.key} node={child} depth={0} path={child.key} />
+          ))}
+        </div>
+        <PreviewCard schema={schema.data} />
+      </div>
+    </ConfigurationBuilderProvider>
+  );
+}
 
 export function ConfigurationBuilderPage() {
+  const versions = useConfigVersions();
+  const latest = useMemo(
+    () =>
+      versions.data?.versions.find((v) => v.is_latest)?.version ??
+      versions.data?.versions[0]?.version ??
+      "",
+    [versions.data]
+  );
+  const [currentVersion, setCurrentVersion] = useState<string>("");
+  const version = currentVersion || latest;
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center">
           <BackButton />
-          {/* Version Dropdown - not hooked up yet */}
-          <div className="flex items-center gap-2">
-            <label htmlFor="java-agent-version" className="text-sm text-foreground">
-              Version
-            </label>
-            <select
-              id="java-agent-version"
-              className="rounded-md border border-border/50 bg-card/80 px-3 py-2 text-sm text-foreground"
-            >
-              <option>2.25.0 (latest)</option>
-            </select>
-          </div>
         </div>
-
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Configuration Builder</h1>
           <p className="text-muted-foreground">
             Build and customize your OpenTelemetry Java Agent configuration
           </p>
         </div>
-
-        {/* Tabs */}
         <Tabs defaultValue="sdk">
           <TabsList>
             <TabsTrigger value="sdk">SDK</TabsTrigger>
             <TabsTrigger value="instrumentation">Instrumentation</TabsTrigger>
           </TabsList>
-
           <TabsContent value="sdk">
-            <div className="mt-4 grid grid-cols-2 gap-6">
-              {/* Left Column - Controls */}
-              <div className="rounded-lg border border-border/50 bg-card/50 p-6 min-h-96">
-                <p className="text-muted-foreground text-sm">SDK controls will appear here</p>
-              </div>
-
-              {/* Right Column - Output Preview */}
-              <div className="rounded-lg border border-border/50 bg-card/50 p-6 min-h-96">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-foreground">Output Preview</h3>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="rounded-md border border-border/50 bg-card px-3 py-1 text-sm text-foreground hover:bg-card/80"
-                    >
-                      Copy
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md border border-border/50 bg-card px-3 py-1 text-sm text-foreground hover:bg-card/80"
-                    >
-                      Download
-                    </button>
-                  </div>
-                </div>
-                <p className="text-muted-foreground text-sm">YAML output will appear here</p>
-              </div>
+            <div className="mt-4 flex items-center justify-end">
+              {versions.data && version ? (
+                <VersionSelector
+                  versions={versions.data.versions}
+                  currentVersion={version}
+                  onVersionChange={setCurrentVersion}
+                  label="Schema version"
+                  id="config-schema-version"
+                />
+              ) : null}
             </div>
+            {version ? <SdkTab version={version} /> : null}
           </TabsContent>
-
           <TabsContent value="instrumentation">
-            <div className="mt-4 grid grid-cols-2 gap-6">
-              {/* Left Column */}
-              <div className="rounded-lg border border-border/50 bg-card/50 p-6 min-h-96">
-                <p className="text-muted-foreground text-sm">
-                  Instrumentation controls will appear here
-                </p>
-              </div>
-
-              {/* Right Column */}
-              <div className="rounded-lg border border-border/50 bg-card/50 p-6 min-h-96">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-foreground">Output Preview</h3>
-                  <div className="flex gap-2">
-                    <button className="rounded-md border border-border/50 bg-card px-3 py-1 text-sm text-foreground hover:bg-card/80">
-                      Copy
-                    </button>
-                    <button className="rounded-md border border-border/50 bg-card px-3 py-1 text-sm text-foreground hover:bg-card/80">
-                      Download
-                    </button>
-                  </div>
-                </div>
-                <p className="text-muted-foreground text-sm">YAML output will appear here</p>
-              </div>
+            <div className="mt-4 rounded-xl border border-border/40 bg-card/30 p-8 text-center text-sm text-muted-foreground">
+              Instrumentation browser is coming in a follow-up PR (#250).
             </div>
           </TabsContent>
         </Tabs>

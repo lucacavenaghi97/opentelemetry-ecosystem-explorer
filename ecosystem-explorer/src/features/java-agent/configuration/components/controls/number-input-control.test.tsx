@@ -13,10 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { NumberInputControl } from "./number-input-control";
 import type { NumberInputNode } from "@/types/configuration";
+
+const validateField = vi.fn();
+let mockValidationErrors: Record<string, string> = {};
+
+vi.mock("@/hooks/use-configuration-builder", () => ({
+  useConfigurationBuilder: () => ({
+    state: {
+      values: {},
+      enabledSections: {},
+      validationErrors: mockValidationErrors,
+      version: "1.0.0",
+      isDirty: false,
+    },
+    validateField,
+    setValue: vi.fn(),
+  }),
+}));
 
 const node: NumberInputNode = {
   controlType: "number_input",
@@ -26,38 +43,38 @@ const node: NumberInputNode = {
 };
 
 describe("NumberInputControl", () => {
+  beforeEach(() => {
+    validateField.mockReset();
+    mockValidationErrors = {};
+  });
+
   it("renders input with current value", () => {
-    render(<NumberInputControl node={node} value={5000} onChange={vi.fn()} />);
+    render(<NumberInputControl node={node} path={node.path} value={5000} onChange={vi.fn()} />);
     expect(screen.getByRole("spinbutton")).toHaveValue(5000);
   });
 
   it("renders empty input when value is null", () => {
-    render(<NumberInputControl node={node} value={null} onChange={vi.fn()} />);
+    render(<NumberInputControl node={node} path={node.path} value={null} onChange={vi.fn()} />);
     expect(screen.getByRole("spinbutton")).toHaveValue(null);
   });
 
   it("calls onChange with path and parsed number", () => {
     const onChange = vi.fn();
-    render(<NumberInputControl node={node} value={0} onChange={onChange} />);
+    render(<NumberInputControl node={node} path={node.path} value={0} onChange={onChange} />);
     fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "3000" } });
     expect(onChange).toHaveBeenCalledWith("exporter.timeout", 3000);
   });
 
-  it("shows range hint when both minimum and maximum are set", () => {
-    const constrainedNode = { ...node, constraints: { minimum: 1, maximum: 60000 } };
-    render(<NumberInputControl node={constrainedNode} value={5000} onChange={vi.fn()} />);
-    expect(screen.getByText("Range: 1–60000")).toBeInTheDocument();
-  });
-
-  it("shows minimum hint when only minimum is set", () => {
-    const constrainedNode = { ...node, constraints: { minimum: 1 } };
-    render(<NumberInputControl node={constrainedNode} value={5000} onChange={vi.fn()} />);
-    expect(screen.getByText("Minimum: 1")).toBeInTheDocument();
-  });
-
   it("shows null state for nullable null value", () => {
     const nullableNode = { ...node, nullable: true };
-    render(<NumberInputControl node={nullableNode} value={null} onChange={vi.fn()} />);
+    render(
+      <NumberInputControl
+        node={nullableNode}
+        path={nullableNode.path}
+        value={null}
+        onChange={vi.fn()}
+      />
+    );
     expect(screen.getByRole("button", { name: "Set value" })).toBeInTheDocument();
     expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
   });
@@ -65,31 +82,109 @@ describe("NumberInputControl", () => {
   it("activates with 0 when Set value clicked", () => {
     const onChange = vi.fn();
     const nullableNode = { ...node, nullable: true };
-    render(<NumberInputControl node={nullableNode} value={null} onChange={onChange} />);
+    render(
+      <NumberInputControl
+        node={nullableNode}
+        path={nullableNode.path}
+        value={null}
+        onChange={onChange}
+      />
+    );
     fireEvent.click(screen.getByRole("button", { name: "Set value" }));
     expect(onChange).toHaveBeenCalledWith("exporter.timeout", 0);
   });
 
-  it("emits 0 when clearing nullable field instead of flipping to null state", () => {
+  it("does not commit 0 when the user clears a non-empty field", () => {
     const onChange = vi.fn();
-    const nullableNode = { ...node, nullable: true };
-    render(<NumberInputControl node={nullableNode} value={5000} onChange={onChange} />);
+    render(<NumberInputControl node={node} path={node.path} value={5000} onChange={onChange} />);
     fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "" } });
-    expect(onChange).toHaveBeenCalledWith("exporter.timeout", 0);
-  });
-
-  it("shows exclusive minimum hint as 'Greater than'", () => {
-    const constrainedNode = { ...node, constraints: { exclusiveMinimum: 0 } };
-    render(<NumberInputControl node={constrainedNode} value={5} onChange={vi.fn()} />);
-    expect(screen.getByText("Greater than 0")).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("links description to input via aria-describedby", () => {
     const nodeWithDesc = { ...node, description: "Max wait time" };
-    render(<NumberInputControl node={nodeWithDesc} value={5000} onChange={vi.fn()} />);
+    render(
+      <NumberInputControl
+        node={nodeWithDesc}
+        path={nodeWithDesc.path}
+        value={5000}
+        onChange={vi.fn()}
+      />
+    );
     const input = screen.getByRole("spinbutton");
     const descId = input.getAttribute("aria-describedby");
     expect(descId).toBeTruthy();
     expect(document.getElementById(descId!)).toHaveTextContent("Max wait time");
+  });
+
+  it("calls validateField on blur and renders the error from state", () => {
+    mockValidationErrors = { [node.path]: "Required" };
+    render(<NumberInputControl node={node} path={node.path} value={0} onChange={vi.fn()} />);
+    fireEvent.blur(screen.getByRole("spinbutton"));
+    expect(validateField).toHaveBeenCalledWith(node.path);
+    expect(screen.getByRole("alert")).toHaveTextContent("Required");
+  });
+
+  it("allows typing to replace a committed zero", () => {
+    const onChange = vi.fn();
+    render(<NumberInputControl node={node} path={node.path} value={0} onChange={onChange} />);
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "7" } });
+    expect(onChange).toHaveBeenLastCalledWith("exporter.timeout", 7);
+    expect(screen.getByRole("spinbutton")).toHaveValue(7);
+  });
+
+  it("restores the committed value on blur when the draft is empty", () => {
+    const onChange = vi.fn();
+    render(<NumberInputControl node={node} path={node.path} value={42} onChange={onChange} />);
+    const input = screen.getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "" } });
+    expect(input).toHaveValue(null);
+    fireEvent.blur(input);
+    expect(input).toHaveValue(42);
+  });
+
+  it("syncs the draft when the external value changes", () => {
+    const { rerender } = render(
+      <NumberInputControl node={node} path={node.path} value={1} onChange={vi.fn()} />
+    );
+    expect(screen.getByRole("spinbutton")).toHaveValue(1);
+    rerender(<NumberInputControl node={node} path={node.path} value={99} onChange={vi.fn()} />);
+    expect(screen.getByRole("spinbutton")).toHaveValue(99);
+  });
+
+  it("focuses and selects the input after Set value is clicked so next keystroke replaces the 0", async () => {
+    const onChange = vi.fn();
+    const nullableNode = { ...node, nullable: true };
+    // jsdom does not support selectionStart/selectionEnd on type=number, so spy on select().
+    const selectSpy = vi.spyOn(HTMLInputElement.prototype, "select");
+    const { rerender } = render(
+      <NumberInputControl
+        node={nullableNode}
+        path={nullableNode.path}
+        value={null}
+        onChange={onChange}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Set value" }));
+    expect(onChange).toHaveBeenCalledWith("exporter.timeout", 0);
+
+    // Simulate the parent re-render after onChange commits.
+    rerender(
+      <NumberInputControl
+        node={nullableNode}
+        path={nullableNode.path}
+        value={0}
+        onChange={onChange}
+      />
+    );
+
+    // Wait for the requestAnimationFrame callback to run.
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+
+    const input = screen.getByRole("spinbutton") as HTMLInputElement;
+    expect(document.activeElement).toBe(input);
+    expect(selectSpy).toHaveBeenCalled();
+    selectSpy.mockRestore();
   });
 });

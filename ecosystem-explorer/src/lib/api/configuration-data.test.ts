@@ -16,6 +16,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import "fake-indexeddb/auto";
 import * as configData from "./configuration-data";
+import { loadConfigStarter } from "./configuration-data";
 import * as idbCache from "./idb-cache";
 import type { ConfigVersionsIndex, GroupNode } from "@/types/configuration";
 
@@ -134,6 +135,45 @@ describe("configuration-data", () => {
       await expect(configData.loadConfigSchema("1.0.0")).rejects.toThrow(
         "Failed to load config-schema-1.0.0: 500 Internal Server Error"
       );
+    });
+  });
+
+  describe("loadConfigStarter", () => {
+    beforeEach(async () => {
+      idbCache.closeDB();
+      await new Promise<void>((resolve) => {
+        const deleteRequest = indexedDB.deleteDatabase("otel-explorer-cache");
+        deleteRequest.onsuccess = () => resolve();
+        deleteRequest.onerror = () => resolve();
+      });
+    });
+
+    it("returns parsed starter on 200", async () => {
+      const body = { enabledSections: { resource: true }, values: { resource: {} } };
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify(body), { status: 200 })
+        ) as unknown as typeof fetch;
+      const result = await loadConfigStarter("1.0.0");
+      expect(result).toEqual(body);
+    });
+
+    it("returns null on 404", async () => {
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          new Response("nope", { status: 404, statusText: "Not Found" })
+        ) as unknown as typeof fetch;
+      const result = await loadConfigStarter("9.9.9");
+      expect(result).toBeNull();
+    });
+
+    it("throws on 500", async () => {
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValue(new Response("boom", { status: 500 })) as unknown as typeof fetch;
+      await expect(loadConfigStarter("1.0.0")).rejects.toThrow(/500/);
     });
   });
 });

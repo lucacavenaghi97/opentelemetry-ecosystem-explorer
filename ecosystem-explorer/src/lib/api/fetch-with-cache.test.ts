@@ -17,6 +17,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import "fake-indexeddb/auto";
 import { fetchWithCache } from "./fetch-with-cache";
 import * as idbCache from "./idb-cache";
+import { STORES } from "./idb-cache";
 
 declare const global: typeof globalThis;
 
@@ -115,5 +116,39 @@ describe("fetchWithCache", () => {
 
     expect(result).toEqual(data);
     expect(global.fetch).toHaveBeenCalledWith("/url");
+  });
+
+  it("returns null when allow404 is true and response is 404", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("not found", { status: 404, statusText: "Not Found" })
+      ) as unknown as typeof fetch;
+    const result = await fetchWithCache("test-404-soft", "/missing.json", STORES.CONFIGURATION, {
+      allow404: true,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("throws on 404 when allow404 is not set", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("not found", { status: 404, statusText: "Not Found" })
+      ) as unknown as typeof fetch;
+    await expect(
+      fetchWithCache("test-404-hard", "/missing.json", STORES.CONFIGURATION)
+    ).rejects.toThrow(/404/);
+  });
+
+  it("throws on 500 even when allow404 is true", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("boom", { status: 500, statusText: "Internal Server Error" })
+      ) as unknown as typeof fetch;
+    await expect(
+      fetchWithCache("test-500-soft", "/broken.json", STORES.CONFIGURATION, { allow404: true })
+    ).rejects.toThrow(/500/);
   });
 });

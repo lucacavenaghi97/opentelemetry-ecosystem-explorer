@@ -14,30 +14,43 @@
  * limitations under the License.
  */
 import { ChevronDown } from "lucide-react";
-import type { VersionInfo } from "@/types/javaagent";
 
-interface VersionSelectorProps {
-  versions: VersionInfo[];
-  currentVersion: string;
-  onVersionChange: (version: string) => void;
+interface VersionInfoLike {
+  version: string;
+  is_latest: boolean;
 }
 
-export function VersionSelector({ versions, currentVersion, onVersionChange }: VersionSelectorProps) {
+interface VersionSelectorProps {
+  versions: VersionInfoLike[];
+  currentVersion: string;
+  onVersionChange: (version: string) => void;
+  label?: string;
+  id?: string;
+}
+
+export function VersionSelector({
+  versions,
+  currentVersion,
+  onVersionChange,
+  label = "Version",
+  id = "version-select",
+}: VersionSelectorProps) {
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor="version-select" className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-        Version
+      <label htmlFor={id} className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+        {label}
       </label>
       <div className="relative">
         <select
-          id="version-select"
+          id={id}
           value={currentVersion}
           onChange={(e) => onVersionChange(e.target.value)}
           className="appearance-none rounded-lg border border-border/60 bg-background/80 pl-3 pr-8 py-1.5 text-sm font-medium backdrop-blur-sm transition-all duration-200 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
         >
           {versions.map((v) => (
             <option key={v.version} value={v.version}>
-              {v.version}{v.is_latest ? " (latest)" : ""}
+              {v.version}
+              {v.is_latest ? " (latest)" : ""}
             </option>
           ))}
         </select>

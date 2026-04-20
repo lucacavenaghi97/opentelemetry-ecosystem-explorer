@@ -34,7 +34,10 @@ function renderPage() {
   return render(
     <MemoryRouter initialEntries={[`/java-agent/instrumentation/${latestVersion}`]}>
       <Routes>
-        <Route path="/java-agent/instrumentation/:version" element={<JavaInstrumentationListPage />} />
+        <Route
+          path="/java-agent/instrumentation/:version"
+          element={<JavaInstrumentationListPage />}
+        />
       </Routes>
     </MemoryRouter>
   );

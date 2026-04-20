@@ -88,6 +88,16 @@ describe("ControlWrapper", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
+  it("renders the null placeholder in italic so it reads as an annotation", () => {
+    const node = { ...baseNode, nullable: true, defaultBehavior: "512 is used" };
+    render(
+      <ControlWrapper node={node} isNull={true} onClear={vi.fn()} onActivate={vi.fn()}>
+        <input />
+      </ControlWrapper>
+    );
+    expect(screen.getByText("512 is used")).toHaveClass("italic");
+  });
+
   it("falls back to defaultBehavior for null placeholder when nullBehavior absent", () => {
     const node = { ...baseNode, nullable: true, defaultBehavior: "30 seconds" };
     render(
@@ -152,14 +162,36 @@ describe("ControlWrapper", () => {
     expect(label).toHaveAttribute("for", "my-input");
   });
 
-  it("renders defaultBehavior hint below input when not in null state", () => {
+  it("renders defaultBehavior via FieldMeta (no 'Default:' prefix) when not in null state", () => {
     const node = { ...baseNode, defaultBehavior: "30 seconds" };
     render(
       <ControlWrapper node={node} onClear={vi.fn()} onActivate={vi.fn()}>
         <input />
       </ControlWrapper>
     );
-    expect(screen.getByText("Default: 30 seconds")).toBeInTheDocument();
+    expect(screen.getByText("30 seconds")).toBeInTheDocument();
+    expect(screen.queryByText(/Default:/)).not.toBeInTheDocument();
+  });
+
+  it("hides FieldMeta when in null state (null-state sentence communicates default)", () => {
+    const node = { ...baseNode, nullable: true, defaultBehavior: "30 seconds" };
+    render(
+      <ControlWrapper node={node} isNull={true} onClear={vi.fn()} onActivate={vi.fn()}>
+        <input />
+      </ControlWrapper>
+    );
+    // "30 seconds" appears exactly once — as the null-state sentence, not as FieldMeta.
+    expect(screen.getAllByText("30 seconds")).toHaveLength(1);
+  });
+
+  it("renders nothing from FieldMeta when no constraints and no defaultBehavior", () => {
+    render(
+      <ControlWrapper node={baseNode} onClear={vi.fn()} onActivate={vi.fn()}>
+        <input />
+      </ControlWrapper>
+    );
+    // Sanity: no default-hint text leaks in.
+    expect(screen.queryByText(/Default:/)).not.toBeInTheDocument();
   });
 
   it('shows "Using default" when both nullBehavior and defaultBehavior are absent', () => {
@@ -170,5 +202,40 @@ describe("ControlWrapper", () => {
       </ControlWrapper>
     );
     expect(screen.getByText("Using default")).toBeInTheDocument();
+  });
+
+  it("renders the error message when error prop is set", () => {
+    render(
+      <ControlWrapper node={baseNode} error="Required" onClear={vi.fn()} onActivate={vi.fn()}>
+        <input />
+      </ControlWrapper>
+    );
+    expect(screen.getByText("Required")).toBeInTheDocument();
+  });
+
+  it("suppresses the label row when node.hideLabel is true", () => {
+    const hiddenLabelNode = { ...baseNode, hideLabel: true };
+    render(
+      <ControlWrapper node={hiddenLabelNode}>
+        <input aria-label="test-input" />
+      </ControlWrapper>
+    );
+    // Label text must not appear in the document.
+    expect(screen.queryByText(hiddenLabelNode.label)).not.toBeInTheDocument();
+  });
+
+  it("omits the error region when error is null or undefined", () => {
+    const { rerender } = render(
+      <ControlWrapper node={baseNode} error={null} onClear={vi.fn()} onActivate={vi.fn()}>
+        <input />
+      </ControlWrapper>
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    rerender(
+      <ControlWrapper node={baseNode} onClear={vi.fn()} onActivate={vi.fn()}>
+        <input />
+      </ControlWrapper>
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

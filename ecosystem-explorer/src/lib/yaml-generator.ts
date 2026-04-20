@@ -135,6 +135,21 @@ export function generateYaml(
   for (const child of others) {
     if (child.controlType === "group") {
       if (state.enabledSections[child.key] !== true) continue;
+      const raw = state.values[child.key];
+      let stripped: StrippedResult = raw === undefined ? EMPTY : stripEmpties(raw);
+      // Unwrap the plugin_select short-circuit at the section-body root: a
+      // single-entry object with null value at the top level represents an
+      // unset leaf, not a bare discriminator.
+      if (stripped !== EMPTY && isPlainObject(stripped)) {
+        const entries = Object.entries(stripped);
+        if (entries.length === 1 && entries[0][1] === null) {
+          stripped = EMPTY;
+        }
+      }
+      const body = stripped === EMPTY ? {} : (stripped as ConfigValue);
+      const block = sectionComment(child, child.key) + dumpYaml({ [child.key]: body });
+      sectionBlocks.push(block);
+      continue;
     }
     const raw = state.values[child.key];
     if (raw === undefined) continue;

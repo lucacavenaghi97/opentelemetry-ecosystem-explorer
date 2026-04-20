@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 import { describe, it, expect } from "vitest";
-import { buildDefaults, findNodeByPath } from "./schema-defaults";
+import { buildDefaults, buildPluginDefaults, findNodeByPath } from "./schema-defaults";
 import type {
+  ConfigNode,
   GroupNode,
   NumberInputNode,
+  PluginSelectNode,
   ToggleNode,
   CircularRefNode,
 } from "@/types/configuration";
@@ -76,6 +78,38 @@ describe("buildDefaults", () => {
   });
 });
 
+describe("buildPluginDefaults", () => {
+  const pluginNode: PluginSelectNode = {
+    controlType: "plugin_select",
+    key: "propagator",
+    label: "Item",
+    path: "propagator.composite.item",
+    allowCustom: true,
+    options: [
+      {
+        controlType: "group",
+        key: "tracecontext",
+        label: "Tracecontext",
+        path: "propagator.composite.item.tracecontext",
+        children: [],
+      },
+    ],
+  };
+
+  it("emits the known plugin key with its built defaults", () => {
+    expect(buildPluginDefaults(pluginNode, "tracecontext")).toEqual({ tracecontext: {} });
+  });
+
+  it("emits an empty-body entry for a custom plugin key when allowCustom is true", () => {
+    expect(buildPluginDefaults(pluginNode, "xray")).toEqual({ xray: {} });
+  });
+
+  it("returns an empty object for an unknown key when allowCustom is false", () => {
+    const strict: PluginSelectNode = { ...pluginNode, allowCustom: false };
+    expect(buildPluginDefaults(strict, "xray")).toEqual({});
+  });
+});
+
 describe("findNodeByPath", () => {
   const rootSchema: GroupNode = {
     controlType: "group",
@@ -92,5 +126,28 @@ describe("findNodeByPath", () => {
 
   it("should return undefined for missing path", () => {
     expect(findNodeByPath(rootSchema, ["nonexistent"])).toBeUndefined();
+  });
+
+  it("descends into union variants by key", () => {
+    const schema: ConfigNode = {
+      controlType: "group",
+      key: "root",
+      label: "Root",
+      path: "",
+      children: [
+        {
+          controlType: "union",
+          key: "value",
+          label: "Value",
+          path: "value",
+          variants: [
+            { controlType: "text_input", key: "string", label: "String", path: "value.string" },
+            { controlType: "number_input", key: "int", label: "Int", path: "value.int" },
+          ],
+        },
+      ],
+    };
+    const node = findNodeByPath(schema, ["value", "string"]);
+    expect(node?.controlType).toBe("text_input");
   });
 });

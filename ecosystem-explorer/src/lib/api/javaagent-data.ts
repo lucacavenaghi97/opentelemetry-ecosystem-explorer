@@ -20,19 +20,23 @@ import { fetchWithCache } from "./fetch-with-cache";
 const BASE_PATH = "/data/javaagent";
 
 export async function loadVersions(): Promise<VersionsIndex> {
-  return fetchWithCache<VersionsIndex>(
+  const data = await fetchWithCache<VersionsIndex>(
     "versions-index",
     `${BASE_PATH}/versions-index.json`,
     STORES.METADATA
   );
+  if (!data) throw new Error("Versions index returned null unexpectedly");
+  return data;
 }
 
 export async function loadVersionManifest(version: string): Promise<VersionManifest> {
-  return fetchWithCache<VersionManifest>(
+  const data = await fetchWithCache<VersionManifest>(
     `manifest-${version}`,
     `${BASE_PATH}/versions/${version}-index.json`,
     STORES.METADATA
   );
+  if (!data) throw new Error(`Manifest for version ${version} returned null unexpectedly`);
+  return data;
 }
 
 export async function loadInstrumentation(
@@ -48,11 +52,13 @@ export async function loadInstrumentation(
   }
 
   const filename = `${id}-${hash}.json`;
-  return fetchWithCache<InstrumentationData>(
+  const data = await fetchWithCache<InstrumentationData>(
     `instrumentation-${hash}`,
     `${BASE_PATH}/instrumentations/${id}/${filename}`,
     STORES.INSTRUMENTATIONS
   );
+  if (!data) throw new Error(`Instrumentation "${id}" returned null unexpectedly`);
+  return data;
 }
 
 export async function loadAllInstrumentations(version: string): Promise<InstrumentationData[]> {

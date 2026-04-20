@@ -13,45 +13,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { ToggleNode } from "@/types/configuration";
+import type { FlagNode } from "@/types/configuration";
 import { useConfigurationBuilder } from "@/hooks/use-configuration-builder";
 import { ControlWrapper } from "./control-wrapper";
 
-interface ToggleControlProps {
-  node: ToggleNode;
+type FlagValue = Record<string, never> | null;
+
+interface FlagControlProps {
+  node: FlagNode;
   path: string;
-  value: boolean | null;
-  onChange: (path: string, value: boolean | null) => void;
+  value: FlagValue;
+  onChange: (path: string, value: FlagValue) => void;
 }
 
-export function ToggleControl({ node, path, value, onChange }: ToggleControlProps) {
-  const isNull = node.nullable === true && value === null;
-  const isEnabled = value ?? false;
+export function FlagControl({ node, path, value, onChange }: FlagControlProps) {
+  const isOn = value !== null;
   const { state } = useConfigurationBuilder();
   const error = state.validationErrors[path] ?? null;
 
   return (
-    <ControlWrapper
-      node={node}
-      isNull={isNull}
-      error={error}
-      onClear={() => onChange(path, null)}
-      onActivate={() => onChange(path, false)}
-    >
+    <ControlWrapper node={node} error={error}>
       <button
         type="button"
         role="switch"
-        aria-checked={isEnabled}
+        aria-checked={isOn}
         aria-label={node.label}
-        aria-required={node.required || undefined}
-        onClick={() => onChange(path, !isEnabled)}
+        onClick={() => onChange(path, isOn ? null : {})}
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-2 focus:ring-offset-background ${
-          isEnabled ? "bg-primary" : "bg-border"
+          isOn ? "bg-primary" : "bg-border"
         }`}
       >
         <span
           className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
-            isEnabled ? "translate-x-6" : "translate-x-1"
+            isOn ? "translate-x-6" : "translate-x-1"
           }`}
         />
       </button>

@@ -13,10 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { StringListControl } from "./string-list-control";
 import type { StringListNode } from "@/types/configuration";
+
+const validateField = vi.fn();
+let mockValidationErrors: Record<string, string> = {};
+
+vi.mock("@/hooks/use-configuration-builder", () => ({
+  useConfigurationBuilder: () => ({
+    state: {
+      values: {},
+      enabledSections: {},
+      validationErrors: mockValidationErrors,
+      version: "1.0.0",
+      isDirty: false,
+    },
+    validateField,
+    setValue: vi.fn(),
+  }),
+}));
 
 const node: StringListNode = {
   controlType: "string_list",
@@ -26,9 +43,19 @@ const node: StringListNode = {
 };
 
 describe("StringListControl", () => {
+  beforeEach(() => {
+    validateField.mockReset();
+    mockValidationErrors = {};
+  });
+
   it("renders existing items", () => {
     render(
-      <StringListControl node={node} value={["Authorization", "Content-Type"]} onChange={vi.fn()} />
+      <StringListControl
+        node={node}
+        path={node.path}
+        value={["Authorization", "Content-Type"]}
+        onChange={vi.fn()}
+      />
     );
     expect(screen.getByDisplayValue("Authorization")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Content-Type")).toBeInTheDocument();
@@ -36,48 +63,73 @@ describe("StringListControl", () => {
 
   it("adds an empty item when Add clicked", () => {
     const onChange = vi.fn();
-    render(<StringListControl node={node} value={["existing"]} onChange={onChange} />);
+    render(
+      <StringListControl node={node} path={node.path} value={["existing"]} onChange={onChange} />
+    );
     fireEvent.click(screen.getByRole("button", { name: "Add item to Headers" }));
     expect(onChange).toHaveBeenCalledWith("exporter.headers", ["existing", ""]);
   });
 
   it("removes item when X clicked", () => {
     const onChange = vi.fn();
-    render(<StringListControl node={node} value={["a", "b"]} onChange={onChange} />);
+    render(
+      <StringListControl node={node} path={node.path} value={["a", "b"]} onChange={onChange} />
+    );
     fireEvent.click(screen.getByRole("button", { name: "Remove item 1" }));
     expect(onChange).toHaveBeenCalledWith("exporter.headers", ["b"]);
   });
 
   it("updates item value on input change", () => {
     const onChange = vi.fn();
-    render(<StringListControl node={node} value={["old"]} onChange={onChange} />);
+    render(<StringListControl node={node} path={node.path} value={["old"]} onChange={onChange} />);
     fireEvent.change(screen.getByDisplayValue("old"), { target: { value: "new" } });
     expect(onChange).toHaveBeenCalledWith("exporter.headers", ["new"]);
   });
 
   it("hides Add button when maxItems reached", () => {
     const constrainedNode = { ...node, constraints: { maxItems: 2 } };
-    render(<StringListControl node={constrainedNode} value={["a", "b"]} onChange={vi.fn()} />);
+    render(
+      <StringListControl
+        node={constrainedNode}
+        path={constrainedNode.path}
+        value={["a", "b"]}
+        onChange={vi.fn()}
+      />
+    );
     expect(screen.queryByRole("button", { name: "Add item to Headers" })).not.toBeInTheDocument();
-  });
-
-  it("shows range constraint hint", () => {
-    const constrainedNode = { ...node, constraints: { minItems: 1, maxItems: 5 } };
-    render(<StringListControl node={constrainedNode} value={["a"]} onChange={vi.fn()} />);
-    expect(screen.getByText("1–5 items")).toBeInTheDocument();
   });
 
   it("does not auto-null when last item removed on nullable node", () => {
     const onChange = vi.fn();
     const nullableNode = { ...node, nullable: true };
-    render(<StringListControl node={nullableNode} value={["only"]} onChange={onChange} />);
+    render(
+      <StringListControl
+        node={nullableNode}
+        path={nullableNode.path}
+        value={["only"]}
+        onChange={onChange}
+      />
+    );
     fireEvent.click(screen.getByRole("button", { name: "Remove item 1" }));
     expect(onChange).toHaveBeenCalledWith("exporter.headers", []);
   });
 
   it("shows null state when nullable and value is null", () => {
     const nullableNode = { ...node, nullable: true };
-    render(<StringListControl node={nullableNode} value={null} onChange={vi.fn()} />);
+    render(
+      <StringListControl
+        node={nullableNode}
+        path={nullableNode.path}
+        value={null}
+        onChange={vi.fn()}
+      />
+    );
     expect(screen.getByRole("button", { name: "Set value" })).toBeInTheDocument();
+  });
+
+  it("renders the error from state when validationErrors has this path", () => {
+    mockValidationErrors = { [node.path]: "Required" };
+    render(<StringListControl node={node} path={node.path} value={[]} onChange={vi.fn()} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Required");
   });
 });

@@ -62,6 +62,7 @@ export interface ConfigNodeBase {
   required?: boolean;
   stability?: "development";
   nullBehavior?: string;
+  hideLabel?: boolean;
 }
 
 export interface GroupNode extends ConfigNodeBase {
@@ -142,3 +143,10 @@ export type ConfigNode =
   | ToggleNode
   | FlagNode
   | KeyValueMapNode;
+
+import type { ConfigValues } from "./configuration-builder";
+
+export interface ConfigStarter {
+  enabledSections: Record<string, boolean>;
+  values: ConfigValues;
+}

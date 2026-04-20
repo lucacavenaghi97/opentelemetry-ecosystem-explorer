@@ -16,10 +16,12 @@
 import { useCallback, useRef } from "react";
 import { Plus, X } from "lucide-react";
 import type { KeyValueMapNode } from "@/types/configuration";
+import { useConfigurationBuilder } from "@/hooks/use-configuration-builder";
 import { ControlWrapper } from "./control-wrapper";
 
 interface KeyValueMapControlProps {
   node: KeyValueMapNode;
+  path: string;
   value: Record<string, string> | null;
   onChange: (path: string, value: Record<string, string> | null) => void;
 }
@@ -37,9 +39,11 @@ function fromEntries(entries: Entry[]): Record<string, string> {
 const INPUT_CLASS =
   "rounded-lg border border-border/60 bg-background/80 px-3 py-2 text-sm backdrop-blur-sm transition-all duration-200 placeholder:text-muted-foreground/50 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20";
 
-export function KeyValueMapControl({ node, value, onChange }: KeyValueMapControlProps) {
+export function KeyValueMapControl({ node, path, value, onChange }: KeyValueMapControlProps) {
   const entries: Entry[] = value ? toEntries(value) : [];
   const isNull = node.nullable === true && value === null;
+  const { state } = useConfigurationBuilder();
+  const error = state.validationErrors[path] ?? null;
   const listRef = useRef<HTMLUListElement>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const statusRef = useRef<HTMLSpanElement>(null);
@@ -49,7 +53,7 @@ export function KeyValueMapControl({ node, value, onChange }: KeyValueMapControl
   }, []);
 
   const emit = (next: Entry[]) => {
-    onChange(node.path, fromEntries(next));
+    onChange(path, fromEntries(next));
   };
 
   const handleAdd = () => {
@@ -80,8 +84,9 @@ export function KeyValueMapControl({ node, value, onChange }: KeyValueMapControl
     <ControlWrapper
       node={node}
       isNull={isNull}
-      onClear={() => onChange(node.path, null)}
-      onActivate={() => onChange(node.path, {})}
+      error={error}
+      onClear={() => onChange(path, null)}
+      onActivate={() => onChange(path, {})}
     >
       <div className="space-y-2">
         <span ref={statusRef} className="sr-only" aria-live="polite" />
@@ -91,14 +96,14 @@ export function KeyValueMapControl({ node, value, onChange }: KeyValueMapControl
             type="button"
             onClick={handleAdd}
             aria-label={`Add entry to ${node.label}`}
-            className="flex items-center gap-1 rounded-md border border-border/60 bg-background/80 px-3 py-1.5 text-xs text-muted-foreground transition-all hover:border-primary/40 hover:text-foreground"
+            className="flex items-center gap-1 rounded-md border border-border/60 bg-background/80 px-3 py-1.5 text-xs text-foreground transition-all hover:border-primary/40"
           >
-            <Plus className="h-3 w-3" aria-hidden="true" />
+            <Plus className="h-3 w-3 text-primary" aria-hidden="true" />
             Add
           </button>
         </div>
         {entries.length === 0 ? (
-          <p className="text-xs text-muted-foreground/70">No entries</p>
+          <p className="text-xs text-muted-foreground">No entries</p>
         ) : (
           <ul ref={listRef} className="space-y-2" aria-label={`${node.label} entries`}>
             {entries.map((entry, index) => (

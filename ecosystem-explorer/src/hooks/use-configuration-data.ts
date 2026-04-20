@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import { useState, useEffect } from "react";
-import type { ConfigVersionsIndex, ConfigNode } from "@/types/configuration";
+import type { ConfigVersionsIndex, ConfigNode, ConfigStarter } from "@/types/configuration";
 import type { DataState } from "./data-state";
 import * as configData from "@/lib/api/configuration-data";
 
@@ -91,6 +91,43 @@ export function useConfigSchema(version: string): DataState<ConfigNode> {
 
     loadData();
 
+    return () => {
+      cancelled = true;
+    };
+  }, [version]);
+
+  return state;
+}
+
+export function useConfigStarter(version: string): DataState<ConfigStarter | null> {
+  const [state, setState] = useState<DataState<ConfigStarter | null>>({
+    data: null,
+    loading: true,
+    error: null,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadData() {
+      if (!version) {
+        setState({ data: null, loading: false, error: null });
+        return;
+      }
+      setState({ data: null, loading: true, error: null });
+      try {
+        const data = await configData.loadConfigStarter(version);
+        if (!cancelled) setState({ data, loading: false, error: null });
+      } catch (error) {
+        if (!cancelled) {
+          setState({
+            data: null,
+            loading: false,
+            error: error instanceof Error ? error : new Error(String(error)),
+          });
+        }
+      }
+    }
+    loadData();
     return () => {
       cancelled = true;
     };

@@ -13,24 +13,37 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { ConfigVersionsIndex, ConfigNode } from "@/types/configuration";
+import type { ConfigVersionsIndex, ConfigNode, ConfigStarter } from "@/types/configuration";
 import { STORES } from "./idb-cache";
 import { fetchWithCache } from "./fetch-with-cache";
 
 const BASE_PATH = "/data/configuration";
 
 export async function loadConfigVersions(): Promise<ConfigVersionsIndex> {
-  return fetchWithCache<ConfigVersionsIndex>(
+  const data = await fetchWithCache<ConfigVersionsIndex>(
     "config-versions-index",
     `${BASE_PATH}/versions-index.json`,
     STORES.CONFIGURATION
   );
+  if (!data) throw new Error("Versions index returned null unexpectedly");
+  return data;
 }
 
 export async function loadConfigSchema(version: string): Promise<ConfigNode> {
-  return fetchWithCache<ConfigNode>(
+  const data = await fetchWithCache<ConfigNode>(
     `config-schema-${version}`,
     `${BASE_PATH}/versions/${version}.json`,
     STORES.CONFIGURATION
+  );
+  if (!data) throw new Error(`Schema for version ${version} returned null unexpectedly`);
+  return data;
+}
+
+export async function loadConfigStarter(version: string): Promise<ConfigStarter | null> {
+  return fetchWithCache<ConfigStarter>(
+    `config-starter-${version}`,
+    `${BASE_PATH}/versions/${version}.starter.json`,
+    STORES.CONFIGURATION,
+    { allow404: true }
   );
 }

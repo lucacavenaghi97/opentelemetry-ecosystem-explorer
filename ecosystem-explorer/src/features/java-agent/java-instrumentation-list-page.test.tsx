@@ -36,7 +36,10 @@ function renderPage(initialPath = "/java-agent/instrumentation/2.0.0") {
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route path="/java-agent/instrumentation" element={<JavaInstrumentationListPage />} />
-        <Route path="/java-agent/instrumentation/:version" element={<JavaInstrumentationListPage />} />
+        <Route
+          path="/java-agent/instrumentation/:version"
+          element={<JavaInstrumentationListPage />}
+        />
       </Routes>
     </MemoryRouter>
   );

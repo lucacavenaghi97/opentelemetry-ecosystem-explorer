@@ -13,15 +13,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useReducer, useEffect, useCallback, useRef, createContext, useContext } from "react";
-import type { ConfigNode, ListNode, PluginSelectNode } from "@/types/configuration";
+import {
+  useReducer,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  createContext,
+  useContext,
+} from "react";
+import type {
+  ConfigNode,
+  ConfigStarter,
+  GroupNode,
+  ListNode,
+  PluginSelectNode,
+} from "@/types/configuration";
 import type {
   ConfigValue,
   ConfigValues,
   ConfigurationBuilderState,
   ValidationResult,
 } from "@/types/configuration-builder";
-import { configurationBuilderReducer, INITIAL_STATE } from "./configuration-builder-reducer";
+import { configurationBuilderReducer } from "./configuration-builder-reducer";
 import { parsePath, serializePath, getByPath } from "@/lib/config-path";
 import {
   buildDefaults,
@@ -29,6 +43,7 @@ import {
   buildPluginDefaults,
   findNodeByPath,
 } from "@/lib/schema-defaults";
+import { hydrateStarterState } from "@/lib/state-hydrate";
 import {
   validateField as validateFieldNode,
   validateAll as validateAllNodes,
@@ -49,6 +64,7 @@ export interface ConfigurationBuilderActionsContextValue {
   setMapEntry: (path: string, key: string, value: string) => void;
   removeMapEntry: (path: string, key: string) => void;
   resetToDefaults: () => void;
+  enableAllSections: () => void;
   loadFromYaml: (yaml: string) => Promise<void>;
   validateField: (path: string) => string | null;
   validateAll: () => ValidationResult;
@@ -86,34 +102,28 @@ function saveToStorage(version: string, state: ConfigurationBuilderState): void 
   }
 }
 
-export function useConfigurationBuilderState(schema: ConfigNode, version: string) {
+export function useConfigurationBuilderState(
+  schema: ConfigNode,
+  version: string,
+  starter: ConfigStarter | null
+) {
   const [state, dispatch] = useReducer(
     configurationBuilderReducer,
     version,
-    (v) => loadFromStorage(v) ?? { ...INITIAL_STATE, version: v }
+    (v) => loadFromStorage(v) ?? hydrateStarterState(v, starter)
   );
   const stateRef = useRef(state);
   const schemaRef = useRef(schema);
   const versionRef = useRef(version);
-  const loadedVersionRef = useRef(version);
+  const starterRef = useRef(starter);
 
   // Keep refs in sync so callbacks always have access to the latest values
   useEffect(() => {
     stateRef.current = state;
     schemaRef.current = schema;
     versionRef.current = version;
-  }, [state, schema, version]);
-
-  // Reload state when version changes
-  useEffect(() => {
-    if (loadedVersionRef.current === version) return;
-    loadedVersionRef.current = version;
-    const saved = loadFromStorage(version);
-    dispatch({
-      type: "LOAD_STATE",
-      state: saved ?? { ...INITIAL_STATE, version },
-    });
-  }, [version]);
+    starterRef.current = starter;
+  }, [state, schema, version, starter]);
 
   // Debounced localStorage save
   useEffect(() => {
@@ -154,10 +164,7 @@ export function useConfigurationBuilderState(schema: ConfigNode, version: string
 
   const selectPlugin = useCallback((path: string, pluginKey: string) => {
     const segments = parsePath(path);
-    const node = findNodeByPath(
-      schemaRef.current,
-      segments.filter((s) => typeof s === "string")
-    );
+    const node = findNodeByPath(schemaRef.current, segments);
     if (node && node.controlType === "plugin_select") {
       const defaults = buildPluginDefaults(node as PluginSelectNode, pluginKey);
       dispatch({ type: "SELECT_PLUGIN", path: segments, pluginKey, defaults });
@@ -166,10 +173,7 @@ export function useConfigurationBuilderState(schema: ConfigNode, version: string
 
   const addListItem = useCallback((path: string) => {
     const segments = parsePath(path);
-    const node = findNodeByPath(
-      schemaRef.current,
-      segments.filter((s) => typeof s === "string")
-    );
+    const node = findNodeByPath(schemaRef.current, segments);
     if (
       node &&
       (node.controlType === "list" ||
@@ -194,8 +198,25 @@ export function useConfigurationBuilderState(schema: ConfigNode, version: string
   }, []);
 
   const resetToDefaults = useCallback(() => {
-    dispatch({ type: "RESET_TO_DEFAULTS" });
+    dispatch({
+      type: "LOAD_STATE",
+      state: hydrateStarterState(versionRef.current, starterRef.current),
+    });
     localStorage.removeItem(STORAGE_KEY);
+  }, []);
+
+  const enableAllSections = useCallback(() => {
+    const schema = schemaRef.current;
+    if (!schema || schema.controlType !== "group") return;
+    const defaultsBySection: Record<string, ConfigValues> = {};
+    for (const child of (schema as GroupNode).children) {
+      if (child.controlType !== "group") continue;
+      const built = buildDefaults(child);
+      if (typeof built === "object" && built !== null && !Array.isArray(built)) {
+        defaultsBySection[child.key] = built as ConfigValues;
+      }
+    }
+    dispatch({ type: "ENABLE_ALL_SECTIONS", defaultsBySection });
   }, []);
 
   const loadFromYaml = useCallback(async (yaml: string) => {
@@ -231,10 +252,7 @@ export function useConfigurationBuilderState(schema: ConfigNode, version: string
 
   const validateFieldAction = useCallback((path: string): string | null => {
     const segments = parsePath(path);
-    const node = findNodeByPath(
-      schemaRef.current,
-      segments.filter((s) => typeof s === "string")
-    );
+    const node = findNodeByPath(schemaRef.current, segments);
     if (!node) return null;
     const value = getByPath(stateRef.current.values, segments);
     const error = validateFieldNode(node, value);
@@ -258,21 +276,28 @@ export function useConfigurationBuilderState(schema: ConfigNode, version: string
     dispatch({ type: "SET_FIELD_ERROR", path: pathKey, error: null });
   }, []);
 
-  return {
-    state,
-    setValue,
-    setEnabled,
-    selectPlugin,
-    addListItem,
-    removeListItem,
-    setMapEntry,
-    removeMapEntry,
-    resetToDefaults,
-    loadFromYaml,
-    validateField: validateFieldAction,
-    validateAll: validateAllAction,
-    clearValidationError,
-  };
+  const actions = useMemo(
+    () => ({
+      setValue,
+      setEnabled,
+      selectPlugin,
+      addListItem,
+      removeListItem,
+      setMapEntry,
+      removeMapEntry,
+      resetToDefaults,
+      enableAllSections,
+      loadFromYaml,
+      validateField: validateFieldAction,
+      validateAll: validateAllAction,
+      clearValidationError,
+    }),
+    // all callbacks are stable; resetToDefaults reads starter via ref
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  return { state, ...actions, actions };
 }
 
 export function useConfigurationBuilder() {

@@ -13,10 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { TextInputControl } from "./text-input-control";
 import type { TextInputNode } from "@/types/configuration";
+
+const validateField = vi.fn();
+let mockValidationErrors: Record<string, string> = {};
+
+vi.mock("@/hooks/use-configuration-builder", () => ({
+  useConfigurationBuilder: () => ({
+    state: {
+      values: {},
+      enabledSections: {},
+      validationErrors: mockValidationErrors,
+      version: "1.0.0",
+      isDirty: false,
+    },
+    validateField,
+    setValue: vi.fn(),
+  }),
+}));
 
 const node: TextInputNode = {
   controlType: "text_input",
@@ -26,19 +43,31 @@ const node: TextInputNode = {
 };
 
 describe("TextInputControl", () => {
+  beforeEach(() => {
+    validateField.mockReset();
+    mockValidationErrors = {};
+  });
+
   it("renders input with current value", () => {
-    render(<TextInputControl node={node} value="http://localhost:4317" onChange={vi.fn()} />);
+    render(
+      <TextInputControl
+        node={node}
+        path={node.path}
+        value="http://localhost:4317"
+        onChange={vi.fn()}
+      />
+    );
     expect(screen.getByRole("textbox")).toHaveValue("http://localhost:4317");
   });
 
   it("renders empty input when value is null", () => {
-    render(<TextInputControl node={node} value={null} onChange={vi.fn()} />);
+    render(<TextInputControl node={node} path={node.path} value={null} onChange={vi.fn()} />);
     expect(screen.getByRole("textbox")).toHaveValue("");
   });
 
   it("calls onChange with path and new string value", () => {
     const onChange = vi.fn();
-    render(<TextInputControl node={node} value="old" onChange={onChange} />);
+    render(<TextInputControl node={node} path={node.path} value="old" onChange={onChange} />);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "new" } });
     expect(onChange).toHaveBeenCalledWith("exporter.endpoint", "new");
   });
@@ -46,21 +75,35 @@ describe("TextInputControl", () => {
   it("calls onChange with empty string when cleared on nullable field (null only via Clear button)", () => {
     const onChange = vi.fn();
     const nullableNode = { ...node, nullable: true };
-    render(<TextInputControl node={nullableNode} value="old" onChange={onChange} />);
+    render(
+      <TextInputControl
+        node={nullableNode}
+        path={nullableNode.path}
+        value="old"
+        onChange={onChange}
+      />
+    );
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "" } });
     expect(onChange).toHaveBeenCalledWith("exporter.endpoint", "");
   });
 
   it("calls onChange with empty string when cleared on non-nullable field", () => {
     const onChange = vi.fn();
-    render(<TextInputControl node={node} value="old" onChange={onChange} />);
+    render(<TextInputControl node={node} path={node.path} value="old" onChange={onChange} />);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "" } });
     expect(onChange).toHaveBeenCalledWith("exporter.endpoint", "");
   });
 
   it("shows null state for nullable null value", () => {
     const nullableNode = { ...node, nullable: true };
-    render(<TextInputControl node={nullableNode} value={null} onChange={vi.fn()} />);
+    render(
+      <TextInputControl
+        node={nullableNode}
+        path={nullableNode.path}
+        value={null}
+        onChange={vi.fn()}
+      />
+    );
     expect(screen.getByRole("button", { name: "Set value" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
@@ -68,17 +111,39 @@ describe("TextInputControl", () => {
   it("activates with empty string when Set value clicked", () => {
     const onChange = vi.fn();
     const nullableNode = { ...node, nullable: true };
-    render(<TextInputControl node={nullableNode} value={null} onChange={onChange} />);
+    render(
+      <TextInputControl
+        node={nullableNode}
+        path={nullableNode.path}
+        value={null}
+        onChange={onChange}
+      />
+    );
     fireEvent.click(screen.getByRole("button", { name: "Set value" }));
     expect(onChange).toHaveBeenCalledWith("exporter.endpoint", "");
   });
 
   it("links description to input via aria-describedby", () => {
     const nodeWithDesc = { ...node, description: "The collector URL" };
-    render(<TextInputControl node={nodeWithDesc} value="test" onChange={vi.fn()} />);
+    render(
+      <TextInputControl
+        node={nodeWithDesc}
+        path={nodeWithDesc.path}
+        value="test"
+        onChange={vi.fn()}
+      />
+    );
     const input = screen.getByRole("textbox");
     const descId = input.getAttribute("aria-describedby");
     expect(descId).toBeTruthy();
     expect(document.getElementById(descId!)).toHaveTextContent("The collector URL");
+  });
+
+  it("calls validateField on blur and renders the error from state", () => {
+    mockValidationErrors = { [node.path]: "Required" };
+    render(<TextInputControl node={node} path={node.path} value="" onChange={vi.fn()} />);
+    fireEvent.blur(screen.getByRole("textbox"));
+    expect(validateField).toHaveBeenCalledWith(node.path);
+    expect(screen.getByRole("alert")).toHaveTextContent("Required");
   });
 });

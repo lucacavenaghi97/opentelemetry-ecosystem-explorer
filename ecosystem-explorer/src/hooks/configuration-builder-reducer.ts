@@ -20,6 +20,7 @@ import type {
   ConfigValue,
 } from "@/types/configuration-builder";
 import { getByPath, setByPath, serializePath } from "@/lib/config-path";
+import { hasUserValues } from "@/lib/state-hydrate";
 
 export const INITIAL_STATE: ConfigurationBuilderState = {
   version: "",
@@ -47,7 +48,7 @@ export function configurationBuilderReducer(
     }
 
     case "SET_ENABLED": {
-      const hasExistingValues = state.values[action.section] !== undefined;
+      const hasExistingValues = hasUserValues(state.values[action.section]);
       const newValues =
         action.enabled && !hasExistingValues && action.defaults
           ? { ...state.values, [action.section]: action.defaults }
@@ -135,6 +136,24 @@ export function configurationBuilderReducer(
         ...state,
         validationErrors: { ...state.validationErrors, [action.path]: action.error },
       };
+    }
+
+    case "ENABLE_ALL_SECTIONS": {
+      const newEnabled: Record<string, boolean> = { ...state.enabledSections };
+      const newValues: ConfigValues = { ...state.values };
+      let changed = false;
+      for (const [key, defaults] of Object.entries(action.defaultsBySection)) {
+        if (newEnabled[key] !== true) {
+          newEnabled[key] = true;
+          changed = true;
+        }
+        if (!hasUserValues(newValues[key])) {
+          newValues[key] = defaults;
+          changed = true;
+        }
+      }
+      if (!changed) return state;
+      return { ...state, values: newValues, enabledSections: newEnabled, isDirty: true };
     }
 
     default:

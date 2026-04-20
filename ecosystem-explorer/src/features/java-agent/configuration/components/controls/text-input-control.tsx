@@ -15,10 +15,12 @@
  */
 import { useId } from "react";
 import type { TextInputNode } from "@/types/configuration";
+import { useConfigurationBuilder } from "@/hooks/use-configuration-builder";
 import { ControlWrapper } from "./control-wrapper";
 
 interface TextInputControlProps {
   node: TextInputNode;
+  path: string;
   value: string | null;
   onChange: (path: string, value: string | null) => void;
 }
@@ -26,10 +28,12 @@ interface TextInputControlProps {
 const INPUT_CLASS =
   "w-full rounded-lg border border-border/60 bg-background/80 px-4 py-2.5 text-sm backdrop-blur-sm transition-all duration-200 placeholder:text-muted-foreground/50 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20";
 
-export function TextInputControl({ node, value, onChange }: TextInputControlProps) {
+export function TextInputControl({ node, path, value, onChange }: TextInputControlProps) {
   const id = useId();
   const descId = useId();
   const isNull = node.nullable === true && value === null;
+  const { state, validateField } = useConfigurationBuilder();
+  const error = state.validationErrors[path] ?? null;
 
   return (
     <ControlWrapper
@@ -37,8 +41,9 @@ export function TextInputControl({ node, value, onChange }: TextInputControlProp
       inputId={id}
       descriptionId={node.description ? descId : undefined}
       isNull={isNull}
-      onClear={() => onChange(node.path, null)}
-      onActivate={() => onChange(node.path, "")}
+      error={error}
+      onClear={() => onChange(path, null)}
+      onActivate={() => onChange(path, "")}
     >
       <input
         id={id}
@@ -47,7 +52,8 @@ export function TextInputControl({ node, value, onChange }: TextInputControlProp
         placeholder={node.defaultBehavior ?? ""}
         aria-describedby={node.description ? descId : undefined}
         aria-required={node.required || undefined}
-        onChange={(e) => onChange(node.path, e.target.value)}
+        onChange={(e) => onChange(path, e.target.value)}
+        onBlur={() => validateField(path)}
         className={INPUT_CLASS}
       />
     </ControlWrapper>

@@ -13,7 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { ConfigNode, GroupNode, ListNode, PluginSelectNode } from "@/types/configuration";
+import type {
+  ConfigNode,
+  GroupNode,
+  ListNode,
+  PluginSelectNode,
+  UnionNode,
+} from "@/types/configuration";
 import type { ConfigValue, ConfigValues } from "@/types/configuration-builder";
 
 export function buildDefaults(node: ConfigNode): ConfigValue {
@@ -77,7 +83,9 @@ export function buildPluginDefaults(
   pluginKey: string
 ): ConfigValues {
   const option = pluginSelectNode.options.find((o) => o.key === pluginKey);
-  if (!option) return {};
+  if (!option) {
+    return pluginSelectNode.allowCustom ? { [pluginKey]: {} } : {};
+  }
   const defaults = buildDefaults(option);
   return { [pluginKey]: defaults };
 }
@@ -94,7 +102,12 @@ export function findNodeByPath(
 
   for (const segment of segments) {
     if (!current) return undefined;
-    if (typeof segment === "number") continue;
+    if (typeof segment === "number") {
+      if (current.controlType === "list") {
+        current = (current as ListNode).itemSchema;
+      }
+      continue;
+    }
 
     if (current.controlType === "group") {
       current = (current as GroupNode).children.find((c) => c.key === segment);
@@ -109,6 +122,8 @@ export function findNodeByPath(
       } else {
         current = undefined;
       }
+    } else if (current.controlType === "union") {
+      current = (current as UnionNode).variants.find((v) => v.key === segment);
     } else {
       current = undefined;
     }

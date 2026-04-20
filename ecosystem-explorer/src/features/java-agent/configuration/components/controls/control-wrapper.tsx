@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 import type { ReactNode } from "react";
-import type { ConfigNodeBase } from "@/types/configuration";
+import type { ConfigNodeBase, Constraints } from "@/types/configuration";
+import { FieldMeta } from "./field-meta";
 
 interface ControlWrapperProps {
   node: ConfigNodeBase;
   inputId?: string;
   descriptionId?: string;
   isNull?: boolean;
+  error?: string | null;
   onClear?: () => void;
   onActivate?: () => void;
   children: ReactNode;
@@ -31,6 +33,7 @@ export function ControlWrapper({
   inputId,
   descriptionId,
   isNull = false,
+  error,
   onClear,
   onActivate,
   children,
@@ -40,25 +43,27 @@ export function ControlWrapper({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        {inputId ? (
-          <label htmlFor={inputId} className="text-sm font-medium text-foreground">
-            {node.label}
-          </label>
-        ) : (
-          <span className="text-sm font-medium text-foreground">{node.label}</span>
-        )}
-        {node.required && (
-          <span className="text-sm text-red-400" aria-hidden="true">
-            *
-          </span>
-        )}
-        {node.stability === "development" && (
-          <span className="rounded-full bg-yellow-500/15 px-2 py-0.5 text-xs text-yellow-500">
-            dev
-          </span>
-        )}
-      </div>
+      {!node.hideLabel && (
+        <div className="flex items-center gap-2">
+          {inputId ? (
+            <label htmlFor={inputId} className="text-sm font-medium text-foreground">
+              {node.label}
+            </label>
+          ) : (
+            <span className="text-sm font-medium text-foreground">{node.label}</span>
+          )}
+          {node.required && (
+            <span className="text-sm text-red-400" aria-hidden="true">
+              *
+            </span>
+          )}
+          {node.stability === "development" && (
+            <span className="rounded-full bg-yellow-500/15 px-2 py-0.5 text-xs text-yellow-500">
+              dev
+            </span>
+          )}
+        </div>
+      )}
       {node.description && (
         <p id={descriptionId} className="text-xs text-muted-foreground">
           {node.description}
@@ -66,13 +71,13 @@ export function ControlWrapper({
       )}
       {showNullState ? (
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground/70">
+          <span className="text-sm italic text-muted-foreground">
             {node.nullBehavior ?? node.defaultBehavior ?? "Using default"}
           </span>
           <button
             type="button"
             onClick={onActivate}
-            className="rounded-md border border-border/60 bg-background/80 px-3 py-1.5 text-xs text-muted-foreground transition-all hover:border-primary/40 hover:text-foreground"
+            className="rounded-md border border-border/60 bg-background/80 px-3 py-1.5 text-xs text-foreground transition-all hover:border-primary/40"
           >
             Set value
           </button>
@@ -85,16 +90,26 @@ export function ControlWrapper({
               type="button"
               onClick={onClear}
               aria-label="Clear value"
-              className="mt-0.5 shrink-0 rounded-md border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground transition-all hover:border-primary/40 hover:text-foreground"
+              className="mt-0.5 shrink-0 rounded-md border border-border/60 bg-background/80 px-3 py-2 text-xs text-foreground transition-all hover:border-primary/40"
             >
               Clear
             </button>
           )}
         </div>
       )}
-      {node.defaultBehavior && !showNullState && (
-        <p className="text-xs text-muted-foreground/70">Default: {node.defaultBehavior}</p>
+      {!showNullState && (
+        <FieldMeta
+          node={{
+            defaultBehavior: node.defaultBehavior,
+            constraints: (node as ConfigNodeBase & { constraints?: Constraints }).constraints,
+          }}
+        />
       )}
+      {error ? (
+        <p role="alert" className="text-xs text-red-400">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
