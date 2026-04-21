@@ -36,7 +36,6 @@ export async function fetchWithCache<T>(
       if (isIDBAvailable()) {
         const cachedData = await getCached<T>(cacheKey, storeType);
         if (cachedData !== null) {
-          inflightRequests.delete(cacheKey);
           return cachedData;
         }
       }
@@ -44,7 +43,6 @@ export async function fetchWithCache<T>(
       const response = await fetch(url);
       if (!response.ok) {
         if (response.status === 404 && options?.allow404) {
-          inflightRequests.delete(cacheKey);
           return null;
         }
         throw new Error(`Failed to load ${cacheKey}: ${response.status} ${response.statusText}`);
@@ -60,11 +58,9 @@ export async function fetchWithCache<T>(
         }
       }
 
-      inflightRequests.delete(cacheKey);
       return data;
-    } catch (error) {
+    } finally {
       inflightRequests.delete(cacheKey);
-      throw error;
     }
   })();
 

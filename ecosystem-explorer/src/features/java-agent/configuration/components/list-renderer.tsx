@@ -13,12 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { JSX } from "react";
+import { useState, type JSX } from "react";
 import { Plus, X } from "lucide-react";
 import type { ListNode } from "@/types/configuration";
 import { useConfigurationBuilder } from "@/hooks/use-configuration-builder";
 import { SchemaRenderer } from "./schema-renderer";
 import { parsePath, getByPath } from "@/lib/config-path";
+
+let listItemIdCounter = 0;
+function nextListItemId(): string {
+  listItemIdCounter += 1;
+  return `li-${listItemIdCounter}`;
+}
 
 export interface ListRendererProps {
   node: ListNode;
@@ -34,6 +40,23 @@ export function ListRenderer({ node, depth, path }: ListRendererProps): JSX.Elem
   const canAdd = !constraints?.maxItems || items.length < constraints.maxItems;
   const canRemove = !constraints?.minItems || items.length > constraints.minItems;
 
+  const [ids, setIds] = useState<string[]>(() => items.map(() => nextListItemId()));
+  let renderIds = ids;
+  if (ids.length !== items.length) {
+    if (ids.length < items.length) {
+      const added = Array.from({ length: items.length - ids.length }, () => nextListItemId());
+      renderIds = [...ids, ...added];
+    } else {
+      renderIds = ids.slice(0, items.length);
+    }
+    setIds(renderIds);
+  }
+
+  const handleRemove = (i: number) => {
+    setIds((current) => current.filter((_, idx) => idx !== i));
+    removeListItem(path, i);
+  };
+
   return (
     <div className="space-y-3">
       {node.description && <p className="text-xs text-muted-foreground">{node.description}</p>}
@@ -45,7 +68,7 @@ export function ListRenderer({ node, depth, path }: ListRendererProps): JSX.Elem
             const itemPath = `${path}[${i}]`;
             return (
               <li
-                key={i}
+                key={renderIds[i]}
                 className="rounded-lg border border-border/40 bg-background/30 p-4 space-y-3"
               >
                 <div className="flex items-center justify-between">
@@ -54,7 +77,7 @@ export function ListRenderer({ node, depth, path }: ListRendererProps): JSX.Elem
                     <button
                       type="button"
                       aria-label={`Remove item ${i + 1}`}
-                      onClick={() => removeListItem(path, i)}
+                      onClick={() => handleRemove(i)}
                       className="rounded-md border border-border/60 p-1 text-muted-foreground hover:border-red-500/40 hover:text-red-400"
                     >
                       <X className="h-3 w-3" aria-hidden="true" />

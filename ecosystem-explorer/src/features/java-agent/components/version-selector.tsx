@@ -14,14 +14,10 @@
  * limitations under the License.
  */
 import { ChevronDown } from "lucide-react";
-
-interface VersionInfoLike {
-  version: string;
-  is_latest: boolean;
-}
+import type { VersionInfo } from "@/types/javaagent";
 
 interface VersionSelectorProps {
-  versions: VersionInfoLike[];
+  versions: VersionInfo[];
   currentVersion: string;
   onVersionChange: (version: string) => void;
   label?: string;

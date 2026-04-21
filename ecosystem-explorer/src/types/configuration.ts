@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import type { ConfigValues } from "./configuration-builder";
+
 export interface ConfigVersionsIndex {
   versions: ConfigVersionInfo[];
 }
@@ -143,8 +145,6 @@ export type ConfigNode =
   | ToggleNode
   | FlagNode
   | KeyValueMapNode;
-
-import type { ConfigValues } from "./configuration-builder";
 
 export interface ConfigStarter {
   enabledSections: Record<string, boolean>;
