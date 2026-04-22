@@ -22,15 +22,24 @@ from explorer_db_builder.instrumentation_transformer import (
 
 
 class TestTransformInstrumentationFormat:
-    def test_format_0_3_no_transformation(self):
-        """Format 0.3 data is returned unchanged."""
+    def test_format_0_5_no_transformation(self):
+        """Format 0.5 data is returned unchanged."""
         data = {
-            "file_format": 0.3,
+            "file_format": 0.5,
             "libraries": [
                 {
                     "name": "test-lib",
                     "javaagent_target_versions": ["com.test:lib:[1.0,)"],
                     "has_standalone_library": True,
+                    "has_javaagent": True,
+                    "configurations": [
+                        {
+                            "name": "otel.test.option",
+                            "declarative_name": "java.test.option",
+                            "type": "boolean",
+                            "examples": ["true", "false"],
+                        }
+                    ],
                 }
             ],
         }
@@ -38,10 +47,30 @@ class TestTransformInstrumentationFormat:
         result = transform_instrumentation_format(data)
 
         assert result == data
-        assert result["file_format"] == 0.3
+        assert result["file_format"] == 0.5
 
-    def test_format_0_2_transforms_to_0_3(self):
-        """Format 0.2 data is transformed to 0.3."""
+    def test_format_0_3_transforms_to_0_5(self):
+        """Format 0.3 data is transformed to 0.5 (version bump, structure preserved)."""
+        data = {
+            "file_format": 0.3,
+            "libraries": [
+                {
+                    "name": "test-lib",
+                    "javaagent_target_versions": ["com.test:lib:[1.0,)"],
+                    "has_standalone_library": True,
+                    "configurations": [{"name": "otel.test.option", "type": "boolean"}],
+                }
+            ],
+        }
+
+        result = transform_instrumentation_format(data)
+
+        assert result["file_format"] == 0.5
+        assert result["libraries"][0]["name"] == "test-lib"
+        assert result["libraries"][0]["configurations"][0]["name"] == "otel.test.option"
+
+    def test_format_0_2_transforms_to_0_5(self):
+        """Format 0.2 data is transformed to 0.5."""
         data = {
             "file_format": 0.2,
             "libraries": [
@@ -75,7 +104,7 @@ class TestTransformInstrumentationFormat:
 
         result = transform_instrumentation_format(data)
 
-        assert result["file_format"] == 0.3
+        assert result["file_format"] == 0.5
         # Verify the type field was renamed to data_type in the metric
         metric = result["libraries"][0]["telemetry"][0]["metrics"][0]
         assert metric["data_type"] == "HISTOGRAM"
@@ -86,8 +115,8 @@ class TestTransformInstrumentationFormat:
         assert result["libraries"][0]["display_name"] == "ActiveJ"
         assert result["libraries"][0]["javaagent_target_versions"] == ["io.activej:activej-http:[6.0,)"]
 
-    def test_format_0_1_transforms_to_0_3(self):
-        """Format 0.1 data is transformed through 0.2 to 0.3."""
+    def test_format_0_1_transforms_to_0_5(self):
+        """Format 0.1 data is transformed through 0.2 and 0.3 to 0.5."""
         data = {
             "file_format": 0.1,
             "libraries": [
@@ -103,7 +132,7 @@ class TestTransformInstrumentationFormat:
 
         result = transform_instrumentation_format(data)
 
-        assert result["file_format"] == 0.3
+        assert result["file_format"] == 0.5
         assert result["libraries"][0]["javaagent_target_versions"] == ["com.test:lib:[1.0,)"]
         assert result["libraries"][0]["has_standalone_library"] is True
         assert "target_versions" not in result["libraries"][0]
@@ -117,9 +146,9 @@ class TestTransformInstrumentationFormat:
 
     def test_unsupported_file_format_raises_error(self):
         """Unsupported file format raises ValueError."""
-        data = {"file_format": 0.4, "libraries": []}
+        data = {"file_format": 0.9, "libraries": []}
 
-        with pytest.raises(ValueError, match="Unsupported file format: 0.4"):
+        with pytest.raises(ValueError, match="Unsupported file format: 0.9"):
             transform_instrumentation_format(data)
 
 

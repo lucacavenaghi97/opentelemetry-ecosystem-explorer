@@ -40,17 +40,22 @@ def transform_instrumentation_format(inventory_data: dict[str, Any]) -> dict[str
 
     file_format = inventory_data["file_format"]
 
-    if file_format == 0.3:
-        logger.debug("File format 0.3 detected, no transformation needed")
+    if file_format == 0.5:
+        logger.debug("File format 0.5 detected, no transformation needed")
         return inventory_data
+    if file_format == 0.3:
+        logger.debug("File format 0.3 detected, transforming to 0.5")
+        return _transform_0_3_to_0_5(inventory_data)
     if file_format == 0.2:
         logger.debug("File format 0.2 detected, transforming to 0.3")
-        return _transform_0_2_to_0_3(inventory_data)
+        return _transform_0_3_to_0_5(_transform_0_2_to_0_3(inventory_data))
     elif file_format == 0.1:
         logger.debug("File format 0.1 detected, transforming to 0.2")
         bump_to_0_2 = _transform_0_1_to_0_2(inventory_data)
         logger.debug("Now transforming from 0.2 to 0.3")
-        return _transform_0_2_to_0_3(bump_to_0_2)
+        bump_to_0_3 = _transform_0_2_to_0_3(bump_to_0_2)
+        logger.debug("Now transforming from 0.3 to 0.5")
+        return _transform_0_3_to_0_5(bump_to_0_3)
     else:
         raise ValueError(f"Unsupported file format: {file_format}")
 
@@ -147,4 +152,26 @@ def _transform_0_2_to_0_3(inventory_data: dict[str, Any]) -> dict[str, Any]:
     transformed_data["file_format"] = 0.3
     logger.info("Transformed inventory from format 0.2 to 0.3")
 
+    return transformed_data
+
+
+def _transform_0_3_to_0_5(inventory_data: dict[str, Any]) -> dict[str, Any]:
+    """Transform file_format 0.3 to 0.5.
+
+    0.5 introduces new optional fields:
+    - ``has_javaagent`` at the library level
+    - ``declarative_name`` and ``examples`` in each configuration entry
+
+    No structural changes are needed; missing values are populated later by the
+    metadata backfiller using data from versions that do have the new fields.
+
+    Args:
+        inventory_data: Inventory data in format 0.3
+
+    Returns:
+        Inventory data tagged as format 0.5
+    """
+    transformed_data = inventory_data.copy()
+    transformed_data["file_format"] = 0.5
+    logger.info("Transformed inventory from format 0.3 to 0.5")
     return transformed_data

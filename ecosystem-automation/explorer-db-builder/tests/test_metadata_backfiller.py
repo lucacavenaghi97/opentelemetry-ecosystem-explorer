@@ -238,3 +238,163 @@ class TestBackfillMetadata:
 
         assert result[Version("1.1.0")]["libraries"][0]["display_name"] == "Test Library"
         assert result[Version("1.2.0")]["libraries"][0]["display_name"] == "Test Library"
+
+    def test_backfill_has_javaagent_boolean(self):
+        """Backfills the has_javaagent boolean (including False) from later versions."""
+        versions = [Version("1.1.0"), Version("1.2.0"), Version("1.3.0")]
+
+        inventories = {
+            Version("1.1.0"): {
+                "file_format": 0.3,
+                "libraries": [
+                    {"name": "agent-lib"},
+                    {"name": "library-only"},
+                ],
+            },
+            Version("1.2.0"): {
+                "file_format": 0.3,
+                "libraries": [
+                    {"name": "agent-lib"},
+                    {"name": "library-only"},
+                ],
+            },
+            Version("1.3.0"): {
+                "file_format": 0.5,
+                "libraries": [
+                    {"name": "agent-lib", "has_javaagent": True},
+                    {"name": "library-only", "has_javaagent": False},
+                ],
+            },
+        }
+
+        def load_fn(version):
+            return inventories[version]
+
+        result = backfill_metadata(versions, load_fn)
+
+        assert result[Version("1.1.0")]["libraries"][0]["has_javaagent"] is True
+        assert result[Version("1.1.0")]["libraries"][1]["has_javaagent"] is False
+        assert result[Version("1.2.0")]["libraries"][0]["has_javaagent"] is True
+        assert result[Version("1.2.0")]["libraries"][1]["has_javaagent"] is False
+        assert result[Version("1.3.0")]["libraries"][0]["has_javaagent"] is True
+        assert result[Version("1.3.0")]["libraries"][1]["has_javaagent"] is False
+
+    def test_backfill_nested_configuration_fields(self):
+        """Backfills declarative_name and examples within configurations across versions."""
+        versions = [Version("1.1.0"), Version("1.2.0")]
+
+        inventories = {
+            Version("1.1.0"): {
+                "file_format": 0.3,
+                "libraries": [
+                    {
+                        "name": "http-lib",
+                        "configurations": [
+                            {"name": "otel.http.known-methods", "type": "list"},
+                            {"name": "otel.http.capture-headers", "type": "list"},
+                        ],
+                    }
+                ],
+            },
+            Version("1.2.0"): {
+                "file_format": 0.5,
+                "libraries": [
+                    {
+                        "name": "http-lib",
+                        "configurations": [
+                            {
+                                "name": "otel.http.known-methods",
+                                "declarative_name": "java.common.http.known_methods",
+                                "type": "list",
+                                "examples": ["GET,POST", "CONNECT,OPTIONS"],
+                            },
+                            {
+                                "name": "otel.http.capture-headers",
+                                "declarative_name": "java.common.http.capture_headers",
+                                "type": "list",
+                            },
+                        ],
+                    }
+                ],
+            },
+        }
+
+        def load_fn(version):
+            return inventories[version]
+
+        result = backfill_metadata(versions, load_fn)
+
+        old_configs = result[Version("1.1.0")]["libraries"][0]["configurations"]
+        assert old_configs[0]["declarative_name"] == "java.common.http.known_methods"
+        assert old_configs[0]["examples"] == ["GET,POST", "CONNECT,OPTIONS"]
+        assert old_configs[1]["declarative_name"] == "java.common.http.capture_headers"
+        assert "examples" not in old_configs[1]
+
+    def test_nested_backfill_isolates_per_library(self):
+        """A configuration named the same in different libraries is not cross-contaminated."""
+        versions = [Version("1.1.0"), Version("1.2.0")]
+
+        inventories = {
+            Version("1.1.0"): {
+                "file_format": 0.3,
+                "libraries": [
+                    {"name": "lib-a", "configurations": [{"name": "shared.option"}]},
+                    {"name": "lib-b", "configurations": [{"name": "shared.option"}]},
+                ],
+            },
+            Version("1.2.0"): {
+                "file_format": 0.5,
+                "libraries": [
+                    {
+                        "name": "lib-a",
+                        "configurations": [{"name": "shared.option", "declarative_name": "a.shared"}],
+                    },
+                    {
+                        "name": "lib-b",
+                        "configurations": [{"name": "shared.option", "declarative_name": "b.shared"}],
+                    },
+                ],
+            },
+        }
+
+        def load_fn(version):
+            return inventories[version]
+
+        result = backfill_metadata(versions, load_fn)
+
+        a_config = result[Version("1.1.0")]["libraries"][0]["configurations"][0]
+        b_config = result[Version("1.1.0")]["libraries"][1]["configurations"][0]
+        assert a_config["declarative_name"] == "a.shared"
+        assert b_config["declarative_name"] == "b.shared"
+
+    def test_empty_examples_list_is_backfilled(self):
+        """An empty examples list is treated as missing and backfilled."""
+        versions = [Version("1.1.0"), Version("1.2.0")]
+
+        inventories = {
+            Version("1.1.0"): {
+                "file_format": 0.5,
+                "libraries": [
+                    {
+                        "name": "lib-a",
+                        "configurations": [{"name": "opt", "examples": []}],
+                    }
+                ],
+            },
+            Version("1.2.0"): {
+                "file_format": 0.5,
+                "libraries": [
+                    {
+                        "name": "lib-a",
+                        "configurations": [{"name": "opt", "examples": ["one", "two"]}],
+                    }
+                ],
+            },
+        }
+
+        def load_fn(version):
+            return inventories[version]
+
+        result = backfill_metadata(versions, load_fn)
+
+        assert result[Version("1.1.0")]["libraries"][0]["configurations"][0]["examples"] == ["one", "two"]
