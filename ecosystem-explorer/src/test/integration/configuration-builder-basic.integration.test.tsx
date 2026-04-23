@@ -69,4 +69,12 @@ describe("ConfigurationBuilderPage — basic", () => {
     expect(screen.queryByRole("switch", { name: /Enable Instrumentation/i })).toBeNull();
     expect(screen.queryByRole("heading", { name: /^Instrumentation$/i, level: 3 })).toBeNull();
   });
+
+  it("does not render the distribution section in the SDK tab", async () => {
+    renderPage();
+
+    await screen.findByRole("switch", { name: /Enable Resource/i }, { timeout: 10_000 });
+
+    expect(screen.queryByText("Distribution", { exact: true })).toBeNull();
+  });
 });

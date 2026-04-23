@@ -28,7 +28,7 @@ import type { GroupNode } from "@/types/configuration";
 import { SchemaRenderer } from "./components/schema-renderer";
 import { PreviewCard } from "./components/preview-card";
 
-const HIDDEN_SDK_KEYS = new Set(["file_format", "instrumentation/development"]);
+const HIDDEN_SDK_KEYS = new Set(["file_format", "instrumentation/development", "distribution"]);
 
 function SdkTab({ version }: { version: string }) {
   const schema = useConfigSchema(version);
