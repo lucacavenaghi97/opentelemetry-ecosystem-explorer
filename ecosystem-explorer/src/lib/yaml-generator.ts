@@ -39,6 +39,11 @@ function defaultHeader(version: string): string {
   ].join("\n");
 }
 
+function toFileFormatVersion(version: string): string {
+  const m = version.match(/^(\d+)\.(\d+)/);
+  return m ? `${m[1]}.${m[2]}` : version;
+}
+
 function emptiesToNull(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(emptiesToNull);
   if (value !== null && typeof value === "object") {
@@ -138,7 +143,8 @@ export function generateYaml(
 
   const fileFormatNode = children.find((c) => c.key === "file_format");
   const fileFormatBlock =
-    sectionComment(fileFormatNode, "file_format") + dumpYaml({ file_format: state.version });
+    sectionComment(fileFormatNode, "file_format") +
+    dumpYaml({ file_format: toFileFormatVersion(state.version) });
 
   const others = children
     .filter((c) => c.key !== "file_format")

@@ -107,7 +107,8 @@ describe("generateYaml", () => {
 
     const output = generateYaml(state, fixtureSchema, { header: "" });
 
-    expect(output).toContain("file_format: 1.0.1");
+    expect(output).toContain('file_format: "1.0"');
+    expect(output).not.toContain("file_format: 1.0.1");
 
     const fileFormatIdx = output.indexOf("file_format:");
     const loggerIdx = output.indexOf("logger_provider:");
