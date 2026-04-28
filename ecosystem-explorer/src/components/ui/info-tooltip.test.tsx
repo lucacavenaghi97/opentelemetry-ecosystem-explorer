@@ -14,56 +14,46 @@
  * limitations under the License.
  */
 import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { InfoTooltip } from "./info-tooltip";
 
 describe("InfoTooltip", () => {
-  it("renders the tooltip element with the description text in the DOM", () => {
-    render(<InfoTooltip text="Helpful description." />);
-    const tooltip = screen.getByRole("tooltip");
-    expect(tooltip).toHaveTextContent("Helpful description.");
+  it("renders nothing when text is empty", () => {
+    const { container } = render(<InfoTooltip text="" />);
+    expect(container.firstChild).toBeNull();
   });
 
-  it("uses the supplied describedById on the tooltip element", () => {
+  it("renders nothing when text is only whitespace", () => {
+    const { container } = render(<InfoTooltip text={"  \n  "} />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("renders a trigger button labelled Description", () => {
+    render(<InfoTooltip text="Helpful description." />);
+    expect(screen.getByRole("button", { name: "Description" })).toBeInTheDocument();
+  });
+
+  it("renders the description text in an accessible element so screen readers reach it via aria-describedby", () => {
+    render(<InfoTooltip text="Helpful description." />);
+    const description = screen.getByText("Helpful description.");
+    expect(description).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "Description" });
+    expect(trigger.getAttribute("aria-describedby")).toBe(description.id);
+  });
+
+  it("uses the supplied describedById on the description element", () => {
     render(<InfoTooltip text="X" describedById="my-desc" />);
-    expect(screen.getByRole("tooltip").id).toBe("my-desc");
+    expect(screen.getByText("X").id).toBe("my-desc");
   });
 
   it("auto-generates an id when describedById is not provided", () => {
     render(<InfoTooltip text="X" />);
-    expect(screen.getByRole("tooltip").id.length).toBeGreaterThan(0);
+    expect(screen.getByText("X").id.length).toBeGreaterThan(0);
   });
 
-  it("makes the tooltip visible on trigger focus and hides it on blur", () => {
+  it("starts with the hover card closed", () => {
     render(<InfoTooltip text="X" />);
-    const trigger = screen.getByRole("button", { name: /description/i });
-    expect(screen.getByRole("tooltip")).toHaveAttribute("data-open", "false");
-    fireEvent.focus(trigger);
-    expect(screen.getByRole("tooltip")).toHaveAttribute("data-open", "true");
-    fireEvent.blur(trigger);
-    expect(screen.getByRole("tooltip")).toHaveAttribute("data-open", "false");
-  });
-
-  it("makes the tooltip visible while the wrapper is hovered", () => {
-    const { container } = render(<InfoTooltip text="X" />);
-    const wrapper = container.querySelector("span") as HTMLElement;
-    fireEvent.mouseEnter(wrapper);
-    expect(screen.getByRole("tooltip")).toHaveAttribute("data-open", "true");
-    fireEvent.mouseLeave(wrapper);
-    expect(screen.getByRole("tooltip")).toHaveAttribute("data-open", "false");
-  });
-
-  it("closes on Escape", () => {
-    render(<InfoTooltip text="X" />);
-    const trigger = screen.getByRole("button", { name: /description/i });
-    fireEvent.focus(trigger);
-    expect(screen.getByRole("tooltip")).toHaveAttribute("data-open", "true");
-    fireEvent.keyDown(trigger, { key: "Escape" });
-    expect(screen.getByRole("tooltip")).toHaveAttribute("data-open", "false");
-  });
-
-  it("renders nothing when text is empty", () => {
-    const { container } = render(<InfoTooltip text="" />);
-    expect(container.firstChild).toBeNull();
+    const trigger = screen.getByRole("button", { name: "Description" });
+    expect(trigger).toHaveAttribute("data-state", "closed");
   });
 });

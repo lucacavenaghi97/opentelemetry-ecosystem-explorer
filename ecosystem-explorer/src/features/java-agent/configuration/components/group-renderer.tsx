@@ -14,18 +14,13 @@
  * limitations under the License.
  */
 import { useState, type JSX } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import type { GroupNode } from "@/types/configuration";
 import { useConfigurationBuilder } from "@/hooks/use-configuration-builder";
 import { getByPath, parsePath } from "@/lib/config-path";
-import { countConfiguredLeaves } from "@/lib/state-summary";
-import { SummaryBadge } from "@/components/ui/summary-badge";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { StabilityBadge } from "@/components/ui/stability-badge";
 import { SwitchPill } from "@/components/ui/switch-pill";
-import { TruncatedDescription } from "@/components/ui/truncated-description";
 import { SchemaRenderer } from "./schema-renderer";
 import { SectionCardShell } from "./section-card-shell";
+import { FieldSection } from "./field-section";
 
 const DEEP_NESTING_DEPTH = 3;
 
@@ -37,7 +32,8 @@ export interface GroupRendererProps {
    * When true, skip the chevron + label header and render the body inline.
    * Set by parents that already named the choice (e.g. PluginSelectRenderer
    * showing "Batch" in its discriminator and not wanting a duplicate header
-   * underneath). Only honored at depth >= 1.
+   * underneath, or ListRenderer wrapping object-list items). Only honored at
+   * depth >= 1.
    */
   headless?: boolean;
 }
@@ -59,7 +55,9 @@ export function GroupRenderer({
     if (enabled) setExpanded(true);
   }
 
-  const body = enabled ? (
+  const value = getByPath(state.values, parsePath(path));
+
+  const body = (
     <div
       className={
         depth >= DEEP_NESTING_DEPTH ? "border-border/40 space-y-3 border-l pl-3" : "space-y-3"
@@ -74,67 +72,55 @@ export function GroupRenderer({
         />
       ))}
     </div>
-  ) : null;
+  );
 
   if (isTopLevel) {
     return (
       <SectionCardShell sectionKey={node.key}>
-        <header className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            {enabled && (
-              <button
-                type="button"
-                aria-expanded={expanded}
-                aria-label={expanded ? `Collapse ${node.label}` : `Expand ${node.label}`}
-                onClick={() => setExpanded((e) => !e)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                {expanded ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </button>
-            )}
-            <h3 className="text-foreground truncate text-base font-semibold">{node.label}</h3>
-            <StabilityBadge stability={node.stability} />
-          </div>
-          <SwitchPill
-            checked={enabled}
-            ariaLabel={`Enable ${node.label}`}
-            onClick={() => setEnabled(node.key, !enabled)}
-          />
-        </header>
-        {node.description && <TruncatedDescription text={node.description} />}
-        {expanded && body}
+        <FieldSection
+          node={node}
+          level="section"
+          value={value}
+          asGroup={false}
+          open={expanded}
+          onOpenChange={setExpanded}
+        >
+          <FieldSection.Header>
+            {enabled && <FieldSection.Chevron />}
+            <FieldSection.Label />
+            <FieldSection.Stability />
+            <FieldSection.Action>
+              <SwitchPill
+                checked={enabled}
+                ariaLabel={`Enable ${node.label}`}
+                onClick={() => setEnabled(node.key, !enabled)}
+              />
+            </FieldSection.Action>
+          </FieldSection.Header>
+          <FieldSection.Description />
+          {enabled && <FieldSection.Body>{body}</FieldSection.Body>}
+        </FieldSection>
       </SectionCardShell>
     );
   }
 
-  const fieldsSet = countConfiguredLeaves(getByPath(state.values, parsePath(path)));
-
+  // Nested group (depth >= 1).
   return (
-    <div className="space-y-2">
-      {!headless && (
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-expanded={expanded}
-            aria-label={expanded ? `Collapse ${node.label}` : `Expand ${node.label}`}
-            onClick={() => setExpanded((e) => !e)}
-            className="text-foreground hover:text-primary flex items-center gap-1 text-sm font-medium"
-          >
-            {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            {node.label}
-          </button>
-          {fieldsSet > 0 && (
-            <SummaryBadge>{`${fieldsSet} ${fieldsSet === 1 ? "field" : "fields"} set`}</SummaryBadge>
-          )}
-          {node.description && <InfoTooltip text={node.description} />}
-        </div>
-      )}
-      {headless && node.description && <InfoTooltip text={node.description} />}
-      {(headless || expanded) && body}
-    </div>
+    <FieldSection
+      node={node}
+      level="field"
+      value={value}
+      headless={headless}
+      open={expanded}
+      onOpenChange={setExpanded}
+    >
+      <FieldSection.Header>
+        <FieldSection.Chevron />
+        <FieldSection.Label />
+        <FieldSection.Badge />
+        <FieldSection.Info />
+      </FieldSection.Header>
+      <FieldSection.Body>{body}</FieldSection.Body>
+    </FieldSection>
   );
 }

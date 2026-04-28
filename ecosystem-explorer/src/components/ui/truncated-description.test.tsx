@@ -60,4 +60,32 @@ describe("TruncatedDescription", () => {
     const rest = screen.getByTestId("truncated-rest");
     expect(button.getAttribute("aria-controls")).toBe(rest.id);
   });
+
+  it("renders multi-paragraph descriptions as multiple <p> elements when expanded", () => {
+    const text =
+      "Configure the propagators. Entries are appended.\n\nThe value is a comma separated list. See details.\n\nBuilt-in identifiers include: tracecontext, baggage.";
+    const { container } = render(<TruncatedDescription text={text} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    const ps = container.querySelectorAll("p");
+    expect(ps.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("renders bullet lists as <ul><li> when expanded", () => {
+    const text =
+      "Known values include the following supported entries.\n\n- alpha: first value\n- beta: second value";
+    const { container } = render(<TruncatedDescription text={text} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    expect(container.querySelector("ul")).not.toBeNull();
+    expect(container.querySelectorAll("ul li").length).toBe(2);
+  });
+
+  it("autolinks bare URLs in the rendered description", () => {
+    const text =
+      "Configure tracing. See the spec.\n\nReference: https://example.com/spec for full details.";
+    render(<TruncatedDescription text={text} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    const link = screen.getByRole("link", { name: "https://example.com/spec" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
 });

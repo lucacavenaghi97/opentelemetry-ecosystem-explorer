@@ -46,7 +46,6 @@ export function TextInputControl({ node, path, value, onChange }: TextInputContr
         id={id}
         type="text"
         value={value ?? ""}
-        placeholder={node.defaultBehavior ?? ""}
         aria-describedby={node.description ? descId : undefined}
         aria-required={node.required || undefined}
         onChange={(e) => onChange(path, e.target.value)}

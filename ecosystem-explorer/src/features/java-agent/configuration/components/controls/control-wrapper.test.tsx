@@ -162,9 +162,8 @@ describe("ControlWrapper", () => {
         <input id="my-input" aria-describedby="my-desc" />
       </ControlWrapper>
     );
-    const tooltip = screen.getByRole("tooltip");
-    expect(tooltip.id).toBe("my-desc");
-    expect(tooltip).toHaveTextContent("URL to send telemetry to.");
+    const description = screen.getByText("URL to send telemetry to.");
+    expect(description.id).toBe("my-desc");
     expect(screen.queryAllByText("URL to send telemetry to.")).toHaveLength(1);
   });
 

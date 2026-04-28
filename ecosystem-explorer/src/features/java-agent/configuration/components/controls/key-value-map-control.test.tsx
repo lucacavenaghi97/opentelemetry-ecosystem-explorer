@@ -131,7 +131,7 @@ describe("KeyValueMapControl", () => {
 
   it("shows empty state text when value is empty object", () => {
     render(<KeyValueMapControl node={node} path={node.path} value={{}} onChange={vi.fn()} />);
-    expect(screen.getByText("No entries")).toBeInTheDocument();
+    expect(screen.getByText("No entries yet")).toBeInTheDocument();
   });
 
   it("renders the error from state when validationErrors has this path", () => {

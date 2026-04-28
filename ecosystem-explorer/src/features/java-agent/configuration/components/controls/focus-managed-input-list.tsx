@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { ReactNode } from "react";
-import { useCallback, useRef } from "react";
-import { Plus, X } from "lucide-react";
+import type { ReactNode, RefObject } from "react";
+import { useCallback, useImperativeHandle, useRef } from "react";
+import { X } from "lucide-react";
 
 interface RenderInputProps<T> {
   value: T;
@@ -23,48 +23,64 @@ interface RenderInputProps<T> {
   ariaLabel: string;
 }
 
+export interface FocusManagedInputListHandle {
+  /**
+   * Call after the consumer's Add handler emits a new item. Schedules focus
+   * on the newly-rendered last input and announces "Item added" via the
+   * polite live region owned by this component.
+   */
+  notifyAdded: () => void;
+}
+
 interface FocusManagedInputListProps<T> {
   label: string;
   items: T[];
-  canAdd: boolean;
   canRemove: boolean;
-  makeEmpty: () => T;
   onChange: (next: T[]) => void;
   renderInput: (props: RenderInputProps<T>) => ReactNode;
+  /** Add button rendered by the consumer (inside FieldSection.Action). When the
+   *  list empties on remove, focus falls back to this button. */
+  addButtonRef: RefObject<HTMLButtonElement | null>;
+  /** Optional imperative handle; the consumer's Add handler should call
+   *  `current?.notifyAdded()` after emitting the new item. */
+  handleRef?: RefObject<FocusManagedInputListHandle | null>;
 }
 
 /**
- * Visual + a11y shell for list-of-input controls. Owns the Add/Remove
- * buttons, the live-region announcer, and the post-mutation focus
- * restoration (focus the new last input on add; the next surviving input
- * on remove; the Add button if the list is now empty). Per-row inputs are
- * supplied by the caller via `renderInput`.
+ * Renders the rows of inputs plus the per-row Remove buttons for a primitive
+ * list (string / number). Owns the live-region announcer and the post-mutation
+ * focus restoration. The Add button lives in the consumer's FieldSection.Action
+ * slot so the header layout stays consistent across all list-like controls.
  */
 export function FocusManagedInputList<T>({
   label,
   items,
-  canAdd,
   canRemove,
-  makeEmpty,
   onChange,
   renderInput,
+  addButtonRef,
+  handleRef,
 }: FocusManagedInputListProps<T>) {
   const listRef = useRef<HTMLUListElement>(null);
-  const addButtonRef = useRef<HTMLButtonElement>(null);
   const statusRef = useRef<HTMLSpanElement>(null);
 
   const announce = useCallback((message: string) => {
     if (statusRef.current) statusRef.current.textContent = message;
   }, []);
 
-  const handleAdd = () => {
-    onChange([...items, makeEmpty()]);
-    requestAnimationFrame(() => {
-      const inputs = listRef.current?.querySelectorAll("input");
-      inputs?.item(inputs.length - 1)?.focus();
-    });
-    announce("Item added");
-  };
+  useImperativeHandle(
+    handleRef ?? { current: null },
+    () => ({
+      notifyAdded: () => {
+        requestAnimationFrame(() => {
+          const inputs = listRef.current?.querySelectorAll("input");
+          inputs?.item(inputs.length - 1)?.focus();
+        });
+        announce("Item added");
+      },
+    }),
+    [announce]
+  );
 
   const handleRemove = (index: number) => {
     onChange(items.filter((_, i) => i !== index));
@@ -87,25 +103,9 @@ export function FocusManagedInputList<T>({
   };
 
   return (
-    <div className="space-y-2">
+    <>
       <span ref={statusRef} className="sr-only" aria-live="polite" />
-      <div className="flex justify-end">
-        {canAdd && (
-          <button
-            ref={addButtonRef}
-            type="button"
-            onClick={handleAdd}
-            aria-label={`Add item to ${label}`}
-            className="border-border/60 bg-background/80 text-foreground hover:border-primary/40 flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs transition-all"
-          >
-            <Plus className="text-primary h-3 w-3" aria-hidden="true" />
-            Add
-          </button>
-        )}
-      </div>
-      {items.length === 0 ? (
-        <p className="text-muted-foreground text-xs">No items</p>
-      ) : (
+      {items.length > 0 && (
         <ul ref={listRef} className="space-y-2" aria-label={`${label} items`}>
           {items.map((item, index) => (
             <li key={index} className="flex gap-2">
@@ -128,6 +128,6 @@ export function FocusManagedInputList<T>({
           ))}
         </ul>
       )}
-    </div>
+    </>
   );
 }

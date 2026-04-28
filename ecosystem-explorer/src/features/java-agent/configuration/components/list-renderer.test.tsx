@@ -93,11 +93,14 @@ describe("ListRenderer", () => {
     expect(screen.queryByText(/field set/i)).toBeNull();
   });
 
-  it("renders the + Add button in the list header", () => {
+  it("renders the + Add button inline in the list header (sibling of chevron via FieldSection.Action)", () => {
     render(<ListRenderer node={listNode} depth={1} path="tp.processors" />);
     const expand = screen.getByRole("button", { name: /Expand Processors/ });
     const add = screen.getByRole("button", { name: /Add item to Processors/ });
-    expect(expand.parentElement).toBe(add.parentElement);
+    // Chevron and the Action wrapper are siblings inside the header flex row.
+    const chevronHeader = expand.parentElement!;
+    const actionWrapper = add.parentElement!;
+    expect(chevronHeader).toBe(actionWrapper.parentElement);
   });
 
   it("dispatches addListItem when Add clicked", () => {
@@ -118,8 +121,7 @@ describe("ListRenderer", () => {
       description: "Configure processors.",
     };
     render(<ListRenderer node={node} depth={1} path="tp.processors" />);
-    const tooltip = screen.getByRole("tooltip");
-    expect(tooltip).toHaveTextContent("Configure processors.");
+    expect(screen.getByText("Configure processors.")).toBeInTheDocument();
     expect(screen.getAllByText("Configure processors.")).toHaveLength(1);
   });
 });

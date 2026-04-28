@@ -194,8 +194,7 @@ describe("UnionRenderer", () => {
       ],
     };
     render(<UnionRenderer node={n} depth={1} path="tracer_provider.sampler" />);
-    const tooltip = screen.getByRole("tooltip");
-    expect(tooltip).toHaveTextContent("Choose a sampling strategy.");
+    expect(screen.getByText("Choose a sampling strategy.")).toBeInTheDocument();
     expect(screen.getAllByText("Choose a sampling strategy.")).toHaveLength(1);
   });
 

@@ -169,8 +169,7 @@ describe("PluginSelectRenderer", () => {
     };
     mockConfigState.values = { exporter: { otlp_http: {} } };
     render(<PluginSelectRenderer node={nodeWithDesc} depth={1} path="exporter" />);
-    const tooltip = screen.getByRole("tooltip");
-    expect(tooltip).toHaveTextContent("Choose the exporter variant.");
+    expect(screen.getByText("Choose the exporter variant.")).toBeInTheDocument();
     expect(screen.getAllByRole("tab")).toHaveLength(2);
     expect(screen.getAllByText("Choose the exporter variant.")).toHaveLength(1);
   });

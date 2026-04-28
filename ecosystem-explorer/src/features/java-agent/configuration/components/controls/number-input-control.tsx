@@ -96,7 +96,6 @@ export function NumberInputControl({ node, path, value, onChange }: NumberInputC
         value={draft}
         min={min}
         max={max}
-        placeholder={node.defaultBehavior ?? ""}
         aria-describedby={node.description ? descId : undefined}
         aria-required={node.required || undefined}
         onChange={handleChange}

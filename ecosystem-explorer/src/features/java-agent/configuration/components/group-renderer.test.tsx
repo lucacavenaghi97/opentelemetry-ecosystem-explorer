@@ -206,8 +206,6 @@ describe("GroupRenderer", () => {
       children: [],
     };
     render(<GroupRenderer node={node} depth={1} path="tracer.processors[0].batch" />);
-    const tooltip = screen.getByRole("tooltip");
-    expect(tooltip).toHaveTextContent("Batch span processor.");
     const allMatches = screen.getAllByText("Batch span processor.");
     expect(allMatches).toHaveLength(1);
   });

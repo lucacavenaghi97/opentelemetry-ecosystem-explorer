@@ -18,6 +18,7 @@ import { Plus, X } from "lucide-react";
 import type { KeyValueMapNode } from "@/types/configuration";
 import { useConfigurationBuilder } from "@/hooks/use-configuration-builder";
 import { ControlWrapper } from "./control-wrapper";
+import { FieldSection } from "../field-section";
 
 interface KeyValueMapControlProps {
   node: KeyValueMapNode;
@@ -81,67 +82,80 @@ export function KeyValueMapControl({ node, path, value, onChange }: KeyValueMapC
   };
 
   return (
-    <ControlWrapper node={node} isNull={isNull} error={error} onClear={() => onChange(path, null)}>
-      <div className="space-y-2">
-        <span ref={statusRef} className="sr-only" aria-live="polite" />
-        <div className="flex justify-end">
-          <button
-            ref={addButtonRef}
-            type="button"
-            onClick={handleAdd}
-            aria-label={`Add entry to ${node.label}`}
-            className="border-border/60 bg-background/80 text-foreground hover:border-primary/40 flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs transition-all"
-          >
-            <Plus className="text-primary h-3 w-3" aria-hidden="true" />
-            Add
-          </button>
-        </div>
-        {entries.length === 0 ? (
-          <p className="text-muted-foreground text-xs">No entries</p>
-        ) : (
-          <ul ref={listRef} className="space-y-2" aria-label={`${node.label} entries`}>
-            {entries.map((entry, index) => (
-              <li key={index} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  aria-label={`Key ${index + 1}`}
-                  placeholder="key"
-                  value={entry.key}
-                  onChange={(e) => {
-                    const next = [...entries];
-                    next[index] = { ...next[index], key: e.target.value };
-                    emit(next);
-                  }}
-                  className={`w-2/5 ${INPUT_CLASS}`}
-                />
-                <span className="text-muted-foreground" aria-hidden="true">
-                  =
-                </span>
-                <input
-                  type="text"
-                  aria-label={`Value ${index + 1}`}
-                  placeholder="value"
-                  value={entry.value}
-                  onChange={(e) => {
-                    const next = [...entries];
-                    next[index] = { ...next[index], value: e.target.value };
-                    emit(next);
-                  }}
-                  className={`min-w-0 flex-1 ${INPUT_CLASS}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemove(index)}
-                  aria-label={`Remove entry ${index + 1}`}
-                  className="border-border/60 bg-background/80 text-muted-foreground shrink-0 rounded-lg border p-2 transition-all hover:border-red-500/40 hover:text-red-400"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+    <ControlWrapper
+      node={node}
+      isNull={isNull}
+      error={error}
+      onClear={() => onChange(path, null)}
+      hideLabel
+    >
+      <FieldSection node={node} level="field" value={value ?? {}} asGroup={false}>
+        <FieldSection.Header>
+          <FieldSection.Label />
+          <FieldSection.Stability />
+          <FieldSection.Info />
+          <FieldSection.Action>
+            <button
+              ref={addButtonRef}
+              type="button"
+              onClick={handleAdd}
+              aria-label={`Add entry to ${node.label}`}
+              className="border-border/60 bg-background/80 hover:border-primary/40 text-foreground flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs transition-all"
+            >
+              <Plus className="text-primary h-3 w-3" aria-hidden="true" />
+              Add
+            </button>
+          </FieldSection.Action>
+        </FieldSection.Header>
+        <FieldSection.Body>
+          <span ref={statusRef} className="sr-only" aria-live="polite" />
+          {entries.length === 0 ? (
+            <FieldSection.Empty>No entries yet</FieldSection.Empty>
+          ) : (
+            <ul ref={listRef} className="space-y-2" aria-label={`${node.label} entries`}>
+              {entries.map((entry, index) => (
+                <li key={index} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    aria-label={`Key ${index + 1}`}
+                    placeholder="key"
+                    value={entry.key}
+                    onChange={(e) => {
+                      const next = [...entries];
+                      next[index] = { ...next[index], key: e.target.value };
+                      emit(next);
+                    }}
+                    className={`w-2/5 ${INPUT_CLASS}`}
+                  />
+                  <span className="text-muted-foreground" aria-hidden="true">
+                    =
+                  </span>
+                  <input
+                    type="text"
+                    aria-label={`Value ${index + 1}`}
+                    placeholder="value"
+                    value={entry.value}
+                    onChange={(e) => {
+                      const next = [...entries];
+                      next[index] = { ...next[index], value: e.target.value };
+                      emit(next);
+                    }}
+                    className={`min-w-0 flex-1 ${INPUT_CLASS}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(index)}
+                    aria-label={`Remove entry ${index + 1}`}
+                    className="border-border/60 bg-background/80 text-muted-foreground shrink-0 rounded-lg border p-2 transition-all hover:border-red-500/40 hover:text-red-400"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </FieldSection.Body>
+      </FieldSection>
     </ControlWrapper>
   );
 }

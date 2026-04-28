@@ -35,6 +35,13 @@ interface ControlWrapperProps {
    */
   inlineControl?: boolean;
   /**
+   * When true, suppress the label row entirely (label, required asterisk,
+   * stability badge, description tooltip). Used by list-like controls that
+   * delegate the header to a FieldSection inside their children, so the Add
+   * button sits next to the label instead of below it.
+   */
+  hideLabel?: boolean;
+  /**
    * Describes the schema's default for this field. When `isNull` is true,
    * the wrapper renders a "default" badge alongside the children. The leaf
    * control is responsible for using `value` to position itself in the
@@ -72,9 +79,11 @@ export function ControlWrapper({
   error,
   onClear,
   inlineControl = false,
+  hideLabel = false,
   defaultPreview,
   children,
 }: ControlWrapperProps) {
+  const labelHidden = hideLabel || node.hideLabel;
   const isUnset = node.nullable === true && isNull;
   const showReset = node.nullable === true && !isNull && !!onClear;
   const trailing: ReactNode = isUnset ? (
@@ -88,7 +97,7 @@ export function ControlWrapper({
 
   return (
     <div className="space-y-2">
-      {!node.hideLabel && (
+      {!labelHidden && (
         <div className="flex items-center gap-2">
           {inputId ? (
             <label htmlFor={inputId} className="text-foreground text-sm font-medium">
