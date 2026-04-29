@@ -1,5 +1,5 @@
 distribution: contrib
-version: 0.150.1-SNAPSHOT
+version: 0.151.1-SNAPSHOT
 repository: opentelemetry-collector-contrib
 component_type: processor
 components:
@@ -94,22 +94,25 @@ components:
       codeowners:
         active:
         - Aneurysm9
-- name: dnslookupprocessor
+- name: drainprocessor
   metadata:
-    type: dnslookup
-    display_name: DNS Lookup Processor
+    type: drain
+    display_name: Drain Processor
+    description: The Drain Processor applies the Drain log clustering algorithm to
+      log records as they pass through the pipeline, deriving a template string (e.g.
+      "user <*> logged in from <*>") and attaching it as an attribute on each record.
     status:
       class: processor
       stability:
-        development:
+        alpha:
         - logs
-        - metrics
-        - traces
+      distributions:
+      - contrib
       codeowners:
         active:
-        - andrzej-stencel
-        - kaisecheng
-        - edmocosta
+        - MikeGoldsmith
+        - atoulme
+        - martinjt
 - name: filterprocessor
   metadata:
     type: filter
@@ -384,7 +387,7 @@ components:
         type: string
 - name: logdedupprocessor
   metadata:
-    type: logdedup
+    type: log_dedup
     display_name: Log DeDuplication Processor
     description: The Log DeDuplication Processor is used to deduplicate logs by detecting
       identical logs over a range of time and emitting a single log with the count
@@ -610,6 +613,7 @@ components:
         - MovieStoreGuy
         - ankitpatel96
         - dineshg13
+        - MikeGoldsmith
 - name: spanprocessor
   metadata:
     type: span
@@ -639,6 +643,7 @@ components:
       codeowners:
         active:
         - portertech
+        - csmarchbanks
 - name: sumologicprocessor
   metadata:
     type: sumologic
@@ -680,10 +685,12 @@ components:
       codeowners:
         active:
         - portertech
-        - Logiraptor
         - jmacd
+        - csmarchbanks
+        - carsonip
         emeritus:
         - jpkrohling
+        - Logiraptor
         seeking_new: true
     attributes:
       decision:
