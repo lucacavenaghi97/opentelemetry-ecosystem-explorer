@@ -33,6 +33,7 @@ import type {
   ConfigValue,
   ConfigValues,
   ConfigurationBuilderState,
+  Path,
   ValidationResult,
 } from "@/types/configuration-builder";
 import { configurationBuilderReducer } from "./configuration-builder-reducer";
@@ -59,6 +60,7 @@ export interface ConfigurationBuilderStateContextValue {
 
 export interface ConfigurationBuilderActionsContextValue {
   setValue: (path: string, value: ConfigValue) => void;
+  setValueByPath: (path: Path, value: ConfigValue) => void;
   setEnabled: (section: string, enabled: boolean) => void;
   selectPlugin: (path: string, pluginKey: string) => void;
   addListItem: (path: string) => void;
@@ -153,6 +155,11 @@ export function useConfigurationBuilderState(
 
   const setValue = useCallback((path: string, value: ConfigValue) => {
     dispatch({ type: "SET_VALUE", path: parsePath(path), value });
+  }, []);
+
+  // Array-form sibling of setValue, for paths whose segments may contain dots.
+  const setValueByPath = useCallback((path: Path, value: ConfigValue) => {
+    dispatch({ type: "SET_VALUE", path, value });
   }, []);
 
   const setEnabled = useCallback((section: string, enabled: boolean) => {
@@ -283,6 +290,7 @@ export function useConfigurationBuilderState(
   const actions = useMemo(
     () => ({
       setValue,
+      setValueByPath,
       setEnabled,
       selectPlugin,
       addListItem,
