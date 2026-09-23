@@ -45,6 +45,24 @@ globally, so do not duplicate it per page. A new static route also needs an entr
 
 - Unit tests live next to source as `*.test.ts(x)` and run with `bun run test`. Integration tests
   use `*.integration.test.ts(x)` and run with `bun run test:integration`.
+- The unit suite and `bun run typecheck` must run without the generated database.
+  `public/data/{javaagent,collector,configuration}/` is builder output that is not always present in
+  a checkout, so a test that reads it belongs in the integration suite. The
+  `typecheck-without-database` job in `.github/workflows/build-and-test.yml` enforces this on every
+  PR. Check it locally before pushing, from the repo root — the three directories are tracked, so
+  deleting them is recoverable with `git restore`:
+
+  ```bash
+  cd ecosystem-explorer
+  rm -rf public/data/javaagent public/data/collector public/data/configuration
+  bun run typecheck && bun run test
+  git restore public/data/javaagent public/data/collector public/data/configuration
+  ```
+
+- Resolve corpus files through the production loader (`loadAllInstrumentations` in
+  `src/lib/api/javaagent-data.ts`, reached via `installFetchInterceptor()` from
+  `src/test/integration/helpers/fetch-interceptor`), never by directory listing or file mtime. mtime
+  is checkout time after a clone and extraction time after an untar, so it orders files arbitrarily.
 - Add or update tests for the code you change.
 - Use `bun run test -t "<name>"` to iterate on a single test without re-running the full suite.
 
