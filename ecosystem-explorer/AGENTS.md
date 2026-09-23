@@ -54,8 +54,10 @@ globally, so do not duplicate it per page. A new static route also needs an entr
   ```bash
   tmp=$(mktemp -d)
   mv public/data/javaagent public/data/collector public/data/configuration "$tmp"/
-  bun run typecheck && bun run test
-  mv "$tmp"/* public/data/
+  (
+    trap 'mv "$tmp"/* public/data/' EXIT
+    bun run typecheck && bun run test
+  )
   ```
 
 - Resolve content-addressed corpus files through the version manifest (`versions/<v>-index.json` →
