@@ -38,10 +38,10 @@ The issue gives four reasons. Three of them carry this change on their own:
   previews and rollbacks are not reproducible. A committed manifest gives that for free.
 - **Checkout weight.** 2,046 files, up 21% from 1,688 in the seven weeks to 2026-09-23.
 
-The fourth, repository size, is smaller than the raw figure suggests, and is worth stating precisely
-so nobody leans on it. The issue records 28.5 MB of `public/data` blob bytes reachable from `HEAD`;
-the same measure at `979b9046` is 43.3 MiB, so the figure reproduces and has simply moved with the
-data. It is uncompressed size, and git stores these blobs packed:
+The fourth, repository size, is smaller than the raw figure suggests. The issue records 28.5 MB of
+`public/data` blob bytes reachable from `HEAD`; the same measure at `979b9046` is 45.4 MB, so the
+method reproduces and the value has grown with the data. It is uncompressed size, and git stores
+these blobs packed:
 
 ```bash
 git rev-list --objects HEAD -- ecosystem-explorer/public/data | awk '{print $1}' \
@@ -49,7 +49,7 @@ git rev-list --objects HEAD -- ecosystem-explorer/public/data | awk '{print $1}'
   | awk '$1=="blob"{u+=$2;d+=$3} END{printf "uncompressed %.1f MB, on disk %.1f MB\n", u/1e6, d/1e6}'
 ```
 
-On disk that is 4.6 MB. Of the repository's 1.77 GiB of packed objects, 99% is reachable only from
+On disk that is 4.8 MB. Of the repository's 1.77 GiB of packed objects, 99% is reachable only from
 the screenshot branches. Growth is not superlinear either: content-addressed blobs are stored once
 and never re-stored, and the history-to-tree ratio has fallen from 2.7x to 2.3x.
 

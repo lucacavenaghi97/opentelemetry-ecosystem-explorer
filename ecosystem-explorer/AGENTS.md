@@ -49,20 +49,21 @@ globally, so do not duplicate it per page. A new static route also needs an entr
   `public/data/{javaagent,collector,configuration}/` is builder output that is not always present in
   a checkout, so a test that reads it belongs in the integration suite. The
   `typecheck-without-database` job in `.github/workflows/build-and-test.yml` enforces this on every
-  PR. Check it locally before pushing, from the repo root — the three directories are tracked, so
-  deleting them is recoverable with `git restore`:
+  PR. Check it locally before pushing:
 
   ```bash
-  cd ecosystem-explorer
-  rm -rf public/data/javaagent public/data/collector public/data/configuration
+  tmp=$(mktemp -d)
+  mv public/data/javaagent public/data/collector public/data/configuration "$tmp"/
   bun run typecheck && bun run test
-  git restore public/data/javaagent public/data/collector public/data/configuration
+  mv "$tmp"/* public/data/
   ```
 
-- Resolve corpus files through the production loader (`loadAllInstrumentations` in
+- Resolve content-addressed corpus files through the version manifest (`versions/<v>-index.json` →
+  `<id>-<hash>.json`) or the production loader (`loadAllInstrumentations` in
   `src/lib/api/javaagent-data.ts`, reached via `installFetchInterceptor()` from
-  `src/test/integration/helpers/fetch-interceptor`), never by directory listing or file mtime. mtime
-  is checkout time after a clone and extraction time after an untar, so it orders files arbitrarily.
+  `src/test/integration/helpers/fetch-interceptor`). Never pick a file by mtime or as "the newest
+  file in a directory". mtime is checkout time after a clone and extraction time after an untar, so
+  it orders files arbitrarily.
 - Add or update tests for the code you change.
 - Use `bun run test -t "<name>"` to iterate on a single test without re-running the full suite.
 
