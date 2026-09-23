@@ -35,7 +35,7 @@ describe("snapshot: latest published registry", () => {
 
     const modules = groupByModule(entries);
     expect(modules.length).toBeGreaterThan(0);
-    expect(modules.length).toBeLessThan(entries.length);
+    expect(modules.length, "grouping collapsed nothing").toBeLessThan(entries.length);
 
     const totalCovered = modules.reduce((sum, m) => sum + m.coveredEntries.length, 0);
     expect(totalCovered).toBe(entries.length);

@@ -25,13 +25,9 @@ const SENTINELS = [
 
 export default function setup(): void {
   const dataDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../../public/data");
-  const missing = SENTINELS.filter((relative) => {
-    try {
-      return !statSync(resolve(dataDir, relative)).isFile();
-    } catch {
-      return true;
-    }
-  });
+  const missing = SENTINELS.filter(
+    (relative) => !statSync(resolve(dataDir, relative), { throwIfNoEntry: false })?.isFile()
+  );
 
   if (missing.length > 0) {
     throw new Error(
