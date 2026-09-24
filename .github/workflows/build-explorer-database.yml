@@ -66,12 +66,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Persist GITHUB_TOKEN as the git credential for the branch push. A
-          # push authenticated with GITHUB_TOKEN does not start workflows, so the
-          # "Commit and push changes" step re-triggers the required checks on the
-          # new head by closing/reopening the PR with the otelbot App token.
-          token: ${{ secrets.GITHUB_TOKEN }}
-          persist-credentials: true
+          # No credential is left in .git/config. Everything between this checkout and the push
+          # runs third-party code inside a contents: write job: `uv sync` builds the workspace
+          # through PEP 517 backends, and the contract gate loads the explorer's whole JS
+          # dependency tree. A persisted credential would be readable by all of it for the length
+          # of the job, so the token is handed to the one step that pushes instead. A push
+          # authenticated with GITHUB_TOKEN does not start workflows, so that same step
+          # re-triggers the required checks on the new head by closing/reopening the PR with the
+          # otelbot App token.
+          persist-credentials: false
 
       - name: Configure git (primary repository)
         if: steps.repo_check.outputs.is_primary == 'true'
@@ -450,6 +453,11 @@ jobs:
           GH_TOKEN:
             ${{ steps.repo_check.outputs.is_primary == 'true' && steps.otelbot-token.outputs.token
             || secrets.GITHUB_TOKEN }}
+          # The otelbot App token above can only touch pull requests, so the branch push
+          # authenticates as GITHUB_TOKEN instead. It cannot be named GITHUB_TOKEN here: gh's
+          # credential helper reads GH_TOKEN first and would ignore it, so the push overrides
+          # GH_TOKEN with this value for that one command.
+          PUSH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ECOSYSTEM: ${{ inputs.ecosystem || 'all' }}
           ECOSYSTEMS: ${{ steps.promote.outputs.ecosystems }}
           # On scheduled runs github.actor doesn't reflect a human who triggered
@@ -478,7 +486,11 @@ jobs:
 
           git commit -m "Update explorer database (${ECOSYSTEM})"
 
-          git push -f origin HEAD:${BRANCH}
+          # Make gh git's credential helper for this push. Nothing is written to disk: the helper
+          # resolves GH_TOKEN every time git asks for a credential, so prefixing the push is what
+          # picks GITHUB_TOKEN while the `gh pr` calls below keep the step's own token.
+          gh auth setup-git
+          GH_TOKEN="$PUSH_TOKEN" git push -f origin HEAD:${BRANCH}
 
           PR_TITLE="[automated] Update explorer database (${ECOSYSTEM})"
           PR_BODY="$(cat <<EOF
