@@ -1,0 +1,25 @@
+{
+  "ecosystems": {
+    "collector": {
+      "release_tag": "data-collector-367b0a97d371",
+      "asset": "collector.tar.gz",
+      "content_digest": "367b0a97d37180a784a8e0a72b3867b09e7b3fe0c22153edb0b05c8f378284a3",
+      "archive_sha256": "384f79d1c4405235ec4bcbca36e6a92270fee8d85c9e92e8e520a1b3c3192382",
+      "registry_commit": "e2173c2c3266450f5be45327c15e6dc1faf29ba6"
+    },
+    "configuration": {
+      "release_tag": "data-configuration-ff3eb0ebf3a6",
+      "asset": "configuration.tar.gz",
+      "content_digest": "ff3eb0ebf3a6517cc7e25e5a06f14db8cd2b247eec230a2000cefffb24f16d6b",
+      "archive_sha256": "1c6cc2df946d65e4cc0bcb40e7f6dcf91092513d9d461eb9edaa0b686b40ca2d",
+      "registry_commit": "e2173c2c3266450f5be45327c15e6dc1faf29ba6"
+    },
+    "javaagent": {
+      "release_tag": "data-javaagent-7ece94e509e4",
+      "asset": "javaagent.tar.gz",
+      "content_digest": "7ece94e509e49ad27a920e85910c33dd85c76fe52ea74cb6cfe5a2df79c3c2cb",
+      "archive_sha256": "cda6f8821cfe369c97d504137f0787c42ac1bdfe85b3d9e7cca16e6121f570a4",
+      "registry_commit": "e2173c2c3266450f5be45327c15e6dc1faf29ba6"
+    }
+  }
+}
