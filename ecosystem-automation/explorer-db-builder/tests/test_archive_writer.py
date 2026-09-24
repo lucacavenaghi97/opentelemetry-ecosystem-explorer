@@ -165,8 +165,16 @@ def test_pack_round_trips_long_paths(tmp_path):
     restored = tmp_path / "restored"
     restored.mkdir()
 
+    # Written out member by member rather than with extractall(filter=...). That argument only
+    # exists from 3.11.4 while the package supports 3.11, and the archive is built by this test, so
+    # there is nothing to sanitise.
     with tarfile.open(destination, "r:gz") as archive:
-        archive.extractall(restored, filter="data")
+        for member in archive.getmembers():
+            target = restored / member.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            extracted = archive.extractfile(member)
+            assert extracted is not None
+            target.write_bytes(extracted.read())
 
     assert (restored / long_name).read_text() == "payload"
     assert tree_digest(restored) == tree_digest(source)

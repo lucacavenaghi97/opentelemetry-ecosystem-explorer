@@ -380,9 +380,11 @@ What a fork still cannot answer is whether the organization ruleset lets automat
   workflow, which satisfies the phase 4 gate requiring a published, non-draft release.
 - A JSON schema for the manifest was not written. The consumer in phase 3 is the first thing that
   parses it, and it is the better place to decide whether the shape needs validating.
-- `ecosystem-explorer/public/data/{activity,announcements,defaults}/` are hand-maintained and the
-  builder never writes them, so they stay tracked and stay outside every archive. The content id
-  used by the `DB_VERSION` split must therefore hash the whole of `public/data`, not the archives.
+- `public/data/` holds hand-maintained directories beside the generated ones, and the set grows:
+  `activity/`, `announcements/`, `defaults/` and, since #1138, `semantic-conventions/`. None of them
+  is builder output, so they stay tracked and stay outside every archive, and the archiving side
+  enumerates the three generated directories explicitly rather than taking whatever it finds. The
+  content id used by the `DB_VERSION` split must hash the whole of `public/data`, not the archives.
 - The standing credential is gone: the nightly now checks out with `persist-credentials: false` and
   the push mints its own through `gh auth setup-git`. `zizmor --persona auditor` reported
   `artipacked` twice before that change and reports it zero times after.
