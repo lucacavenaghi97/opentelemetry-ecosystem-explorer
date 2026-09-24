@@ -94,11 +94,20 @@ keeps doing its job.
 
 The tag is `data-<ecosystem>-<first 12 hex of content_digest>`.
 
-An organization ruleset makes tags in this repository immutable for automation. That is awkward for
-any scheme keyed on time, because the nightly runs every night and force-pushes to the same branch,
-so the publish path executes repeatedly for content that is byte-identical to the previous night's.
-A date-based tag collides on the second run of a day; a run-id tag never collides but creates a
-fresh release every night for unchanged bytes.
+The organization ruleset "Immutable tags with maintainer bypass" applies to every tag in this
+repository. Its rules are `deletion`, `non_fast_forward` and `update`, with no `creation` rule, so a
+tag can be made but never moved or removed:
+
+```bash
+gh api repos/open-telemetry/opentelemetry-ecosystem-explorer/rulesets/5576619 \
+  --jq '{target, rules: [.rules[].type]}'
+```
+
+That is exactly the shape this scheme needs, and it is awkward for any scheme keyed on time, because
+the nightly runs every night and force-pushes to the same branch, so the publish path executes
+repeatedly for content that is byte-identical to the previous night's. A date-based tag collides on
+the second run of a day; a run-id tag never collides but creates a fresh release every night for
+unchanged bytes.
 
 Deriving the tag from the digest makes the scheme idempotent by construction. Unchanged content
 yields a tag that already exists, so the run publishes nothing. Changed content yields a different
@@ -332,20 +341,12 @@ straight after merge rather than letting the 06:00 cron be the first run.
 
 ## Open questions
 
-- Whether `GITHUB_TOKEN` may create `refs/tags/data-*` under the organization ruleset that makes
-  tags immutable for automation. Creation is normally exempt from immutability, and the otelbot App
-  holds no `contents` scope to fall back on, so this needs an org admin's confirmation before merge
-  rather than discovery by the first upstream run. The publish step tolerates the failure so the
-  nightly data pull request keeps working either way.
-
-- The fork rehearsal **has been run**, on 2026-09-24, against
-  `lucacavenaghi97/opentelemetry-ecosystem-explorer` at commit `0cee03be`. It published three
-  releases, wrote the manifest and opened the automated pull request, all in one pass. What it
-  settled is recorded below.
+None.
 
 ## What the fork rehearsal established
 
-A `workflow_dispatch` run on a fork, with every `gh` call pinned to the running repository:
+Run on 2026-09-24 against `lucacavenaghi97/opentelemetry-ecosystem-explorer` at commit `0cee03be`,
+by `workflow_dispatch`, with every `gh` call pinned to the running repository:
 
 - The three archives packed, round-tripped and passed the contract gate, and the integration suite
   ran against the unpacked tree.
