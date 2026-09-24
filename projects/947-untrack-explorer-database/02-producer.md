@@ -382,9 +382,11 @@ What a fork still cannot answer is whether the organization ruleset lets automat
 - `ecosystem-explorer/public/data/{activity,announcements,defaults}/` are hand-maintained and the
   builder never writes them, so they stay tracked and stay outside every archive. The content id
   used by the `DB_VERSION` split must therefore hash the whole of `public/data`, not the archives.
-- The nightly checks out with `persist-credentials: true`, so a `contents: write` token sits in
-  `.git/config` while third-party dependencies run. That predates this work, and the archive hashes
-  are pinned before any JavaScript runs so a substitution is caught rather than published, but
-  moving the push to an explicit credential would close it properly.
-- Running the contract gate in its own `contents: read` job, with the archives passed as an
-  artifact, is the structural version of the same fix.
+- The standing credential is gone: the nightly now checks out with `persist-credentials: false` and
+  the push mints its own through `gh auth setup-git`. `zizmor --persona auditor` reported
+  `artipacked` twice before that change and reports it zero times after.
+- That is mitigation rather than isolation, because a process spawned during `uv sync` or the
+  contract gate can outlive its step and read a later step's environment. Splitting the build into a
+  `contents: read` job that hands archives to a credentialed publish job is tracked as
+  [#1162](https://github.com/open-telemetry/opentelemetry-ecosystem-explorer/issues/1162), with the
+  full breakdown of what crosses the boundary.
