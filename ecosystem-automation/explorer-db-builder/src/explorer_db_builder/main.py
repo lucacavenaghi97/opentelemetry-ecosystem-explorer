@@ -17,11 +17,13 @@
 import argparse
 import logging
 import sys
+from pathlib import Path
 from typing import Optional
 
 from semantic_version import Version
 from watcher_common.inventory_manager import JavaagentInventoryManager
 
+from explorer_db_builder.archive_plan import emit_archives
 from explorer_db_builder.collector_builder import run_collector_builder
 from explorer_db_builder.configuration_aggregator import build_global_configurations
 from explorer_db_builder.configuration_builder import run_configuration_builder
@@ -32,6 +34,7 @@ from explorer_db_builder.declarative_name_corrections import (
     normalize_config_descriptions,
 )
 from explorer_db_builder.ecosystem_stats import count_unique_java_library_names
+from explorer_db_builder.ecosystems import ECOSYSTEMS
 from explorer_db_builder.instrumentation_transformer import (
     make_list_instrumentation,
     transform_instrumentation_format,
@@ -346,7 +349,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--ecosystem",
-        choices=["javaagent", "configuration", "collector", "all"],
+        choices=[*ECOSYSTEMS, "all"],
         default="all",
         help="Which ecosystem pipeline to run (default: all)",
     )
@@ -357,6 +360,15 @@ def main() -> None:
         help=(
             "Write a JSON report of latest-release collector components missing a "
             "display_name to PATH. Only produced when the collector pipeline runs."
+        ),
+    )
+    parser.add_argument(
+        "--emit-archives",
+        default=None,
+        metavar="DIR",
+        help=(
+            "After a successful build, write one byte-reproducible <ecosystem>.tar.gz per "
+            "ecosystem to DIR, plus archive-plan.json describing what to publish."
         ),
     )
 
@@ -374,6 +386,12 @@ def main() -> None:
         ecosystem=args.ecosystem,
         collector_audit_report=args.collector_audit_report,
     )
+
+    # Archiving reads the built tree, so it only runs once every selected pipeline succeeded.
+    if exit_code == 0 and args.emit_archives:
+        logger.info("--- Archives ---")
+        exit_code = emit_archives(Path(args.emit_archives))
+
     sys.exit(exit_code)
 
 
