@@ -314,10 +314,12 @@ jobs:
         run: bun run test:integration
         working-directory: ecosystem-explorer
 
+      # Nothing may be committed before this succeeds. A partial publication would otherwise push
+      # data whose manifest pins only part of it, on a pull request that looks mergeable because
+      # the run's own failure is not one of its checks. Failing here costs a night: the tags derive
+      # from the content digest, so the next run re-derives them and reuses what this one published.
       - name: Publish the data releases
-        id: publish
         if: steps.check_changes.outputs.manifest_changed == 'true'
-        continue-on-error: true
         env:
           # Pin every gh call to the repository running this workflow. Left to resolve on its
           # own, gh prefers a fork's parent, so a dispatch on a fork could act on upstream.
@@ -419,11 +421,12 @@ jobs:
               --registry-commit "$SHA"
           done
 
+          # The loop runs past a failing ecosystem so that one run names all of them, but the step
+          # still fails, which stops the job before anything is staged.
           if [ "$failed" = "true" ]; then
-            echo "published=partial" >> "$GITHUB_OUTPUT"
+            echo "::error::One or more data releases failed to publish; nothing will be committed."
             exit 1
           fi
-          echo "published=ok" >> "$GITHUB_OUTPUT"
 
       - name: Increment DB cache schema version
         if: steps.check_changes.outputs.data_changed == 'true'
@@ -469,16 +472,15 @@ jobs:
           for eco in $ECOSYSTEMS; do
             git add "ecosystem-explorer/public/data/$eco/"
           done
-          # The manifest only exists once a release has been published. `git add` on a missing
-          # path exits 128, which would take down the data pull request the publish step's
-          # continue-on-error exists to protect.
+          # The manifest exists only once a release has been published, and `git add` on a missing
+          # path exits 128, so the path is guarded rather than assumed.
           if [ -f ecosystem-explorer/public/data-manifest.json ]; then
             git add ecosystem-explorer/public/data-manifest.json
           fi
           git add ecosystem-explorer/src/lib/api/idb-cache.ts
 
-          # Publication can fail while the data is unchanged, which leaves nothing staged, and
-          # `git commit` would then exit 1 and take the step down with it.
+          # Nothing staged means there is no pull request to open, and `git commit` would exit 1
+          # and take the step down with it.
           if git diff --cached --quiet; then
             echo "Nothing staged, so there is no pull request to open."
             exit 0
@@ -537,12 +539,3 @@ jobs:
           steps.check_changes.outputs.manifest_changed == 'false'
         run: |
           echo "No database changes detected. Skipping PR creation."
-
-      # continue-on-error above keeps a publish failure from killing the data pull request. It must
-      # still fail the run, or a broken publish path would go unnoticed for weeks.
-      - name: Fail if publication did not complete
-        if: ${{ !cancelled() && steps.publish.outcome == 'failure' }}
-        run: |
-          set -euo pipefail
-          echo "::error::One or more data releases failed to publish. The database build itself succeeded; see the publish step for which ecosystems are affected."
-          exit 1

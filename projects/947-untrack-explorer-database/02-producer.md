@@ -276,6 +276,16 @@ anonymously.
 Publication must complete **before the push**, not merely before the pull request is opened: drafts
 are not downloadable anonymously, and Netlify builds previews from the branch-push webhook.
 
+A publication that does not complete **stops the run**. The job fails at the publish step, before
+the `DB_VERSION` bump, the commit and the push, so no branch ever carries generated data whose
+manifest pins only part of it. That ordering is what makes the guarantee hold: the run's own failure
+is not a check on the pull request it has just updated, so a partial publication would leave a pull
+request that looks mergeable while the failure sits out of sight. Stopping costs a night and no
+more. The build is deterministic from the registry and the tags derive from the content digest, so
+the next run re-derives the same tags, reuses any release this one already published through the
+state check in step 4.i, deletes any draft left between create and upload through step 4.ii, and
+writes the blocks that were missed.
+
 ## The contract gate
 
 [`design-decisions.md` §5](./design-decisions.md#5-test-strategy) requires the database contract to
@@ -311,7 +321,9 @@ that is fine: this phase is producer only.
 
 What the fork cannot rehearse is the organization's tag immutability ruleset. The first upstream run
 is therefore the first real encounter with it, so a maintainer should dispatch the workflow manually
-straight after merge rather than letting the 06:00 cron be the first run.
+straight after merge rather than letting the 06:00 cron be the first run, and should watch it: a
+publication that does not complete stops the run before the commit, so it withholds the data pull
+request as well.
 
 ## Tasks
 
@@ -336,6 +348,7 @@ straight after merge rather than letting the 06:00 cron be the first run.
 - Git seeing changes that the digest does not fails the run.
 - The contract gate runs against the unpacked archives, not the build directory.
 - No release carries the Latest badge, and `GET /releases/latest` finds nothing.
+- A publication that does not complete commits nothing, pushes nothing and fails the run.
 - `format:check` and `lint:md` pass on the manifest and this document.
 - The `sed` bump step is untouched.
 
@@ -371,8 +384,11 @@ by `workflow_dispatch`, with every `gh` call pinned to the running repository:
   `db-builder-integration.yml` and `build-and-test.yml` and produce the same warning there; removing
   them is a small cleanup for another change.
 
-What a fork still cannot answer is whether the organization ruleset lets automation create
-`refs/tags/data-*` on the upstream repository, since a personal fork carries none of its rulesets.
+A personal fork carries none of the organization's rulesets, so it cannot exercise the tag ruleset
+at all. That question was answered by reading the ruleset instead: `5576619` is the only ruleset
+targeting tags, and its rules are `deletion`, `non_fast_forward` and `update`, with no `creation`
+rule, so automation may create `refs/tags/data-*`. What is left untried is the first real execution
+against it.
 
 ## Follow-ups
 
