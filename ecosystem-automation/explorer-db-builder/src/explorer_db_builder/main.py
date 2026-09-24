@@ -374,6 +374,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    # The plan always describes every ecosystem, so archiving a single-pipeline build would pin
+    # digests and release tags for two trees this invocation did not produce.
+    if args.emit_archives and args.ecosystem != "all":
+        parser.error("--emit-archives requires --ecosystem all")
+
     configure_logging()
 
     logger.info("=" * 60)
