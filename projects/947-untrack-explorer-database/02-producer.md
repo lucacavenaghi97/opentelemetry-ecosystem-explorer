@@ -360,7 +360,8 @@ What the fork cannot rehearse is the organization's tag immutability ruleset. Th
 is therefore the first real encounter with it, so a maintainer should dispatch the workflow manually
 straight after merge rather than letting the 06:00 cron be the first run, and should watch it: a
 publication that does not complete stops the run before the commit, so it withholds the data pull
-request as well.
+request as well. On upstream the workflow refuses to run from any branch but `main`, while a fork
+may dispatch it from any branch.
 
 ## Tasks
 

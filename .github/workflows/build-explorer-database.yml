@@ -49,6 +49,18 @@ jobs:
             echo "is_primary=false" >> $GITHUB_OUTPUT
           fi
 
+      # Releases are permanent and main reuses them by content digest, so upstream runs this only
+      # from main. A fork may run it from any branch, which is how the release path is rehearsed.
+      - name: Require main on the primary repository
+        env:
+          IS_PRIMARY: ${{ steps.repo_check.outputs.is_primary }}
+        run: |
+          set -euo pipefail
+          if [ "$IS_PRIMARY" = "true" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::data releases are published only from main, and this run is on $GITHUB_REF"
+            exit 1
+          fi
+
       # Mint the otelbot App token for the PR operations below (create / edit /
       # close-reopen). The otelbot App installed on this repo only holds
       # `pull-requests: write` and has no `contents: write`, so it cannot push.
