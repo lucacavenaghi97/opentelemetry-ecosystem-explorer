@@ -374,7 +374,8 @@ None.
 
 ## What the fork rehearsal established
 
-It covered the three ecosystems that existed then; `javascript` joined the builder with #1202.
+The first rehearsal covered the three ecosystems that existed then. `javascript` joined the builder
+with #1202, and a second rehearsal, recorded below the first, covered all four.
 
 Run on 2026-09-24 against `lucacavenaghi97/opentelemetry-ecosystem-explorer` at commit `0cee03be`,
 by `workflow_dispatch`, with every `gh` call pinned to the running repository:
@@ -401,6 +402,23 @@ by `workflow_dispatch`, with every `gh` call pinned to the running repository:
   annotation. They were dropped from the step added here. The same two inputs are present in
   `db-builder-integration.yml` and `build-and-test.yml` and produce the same warning there; removing
   them is a small cleanup for another change.
+
+The second rehearsal ran on 2026-10-01 on the same fork at commit `9e425b07`, by `workflow_dispatch`
+with ecosystem `all`. The fork had no releases and no manifest yet:
+
+- The two-way check agreed on every ecosystem. Collector and javascript changed for both git and the
+  digest: collector because #1139 changed builder output after the committed data was last
+  regenerated, javascript because its data was not committed yet, so its previous digest was null.
+  Configuration and javaagent were unchanged for both.
+- It took the full path: the gate passed and four pre-releases were created,
+  `data-collector-95dcbb3e56e0`, `data-configuration-ff3eb0ebf3a6`, `data-javaagent-7ece94e509e4`
+  and `data-javascript-55d354255b83`. The configuration and javaagent digests equal the first
+  rehearsal's, so the build stayed reproducible across the main merge.
+- It committed the regenerated collector data, the new javascript directory, the manifest and a
+  `DB_VERSION` bump, and opened its pull request.
+- A second run, dispatched from the automated branch, found all four unchanged for both git and the
+  digest. It skipped the gate, publication and the commit, and reported no changes.
+- The releases were deleted from the fork afterwards.
 
 A personal fork carries none of the organization's rulesets, so it cannot exercise the tag ruleset
 at all. That question was answered by reading the ruleset instead: `5576619` is the only ruleset
