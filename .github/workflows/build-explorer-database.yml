@@ -341,6 +341,53 @@ jobs:
           PLAN="$ARCHIVES/archive-plan.json"
           failed=false
 
+          # A reused release is checked, not trusted: its tag is immutable but its asset is not, and
+          # can be replaced or deleted after publication. Comparing it with this run's archive would
+          # not work, because gzip output reproduces only on the same runner image, so the asset is
+          # unpacked and its tree digested instead. Returns 1 when the asset does not match and 2 when
+          # it could not be fetched or unpacked, which a rerun may fix. It runs where set -e does not
+          # apply, hence the explicit returns.
+          check_published_asset() {
+            local dir sum listing fetched=false
+            dir=$(mktemp -d "${RUNNER_TEMP}/published-$eco.XXXXXX") || return 2
+            for _ in 1 2 3; do
+              if gh release download "$tag" --pattern "$asset" --dir "$dir" --clobber; then
+                fetched=true
+                break
+              fi
+              sleep 5
+            done
+            if [ "$fetched" != "true" ]; then
+              echo "::error::$eco: could not download $asset from $tag"
+              return 2
+            fi
+            sum=$(sha256sum "$dir/$asset" | cut -d' ' -f1) || return 2
+            if [ "sha256:$sum" != "$asset_digest" ]; then
+              echo "::error::$eco: $asset on $tag hashes to sha256:$sum, but the API reports $asset_digest"
+              return 1
+            fi
+            if ! listing=$(tar -tvzf "$dir/$asset"); then
+              echo "::error::$eco: $asset on $tag is not a readable gzip archive"
+              return 1
+            fi
+            # The builder packs regular files only, so any other entry means the asset was replaced.
+            if printf '%s' "$listing" | grep -v '^-'; then
+              echo "::error::$eco: $asset on $tag holds the entries above, which are not regular files"
+              return 1
+            fi
+            mkdir "$dir/tree" || return 2
+            if ! tar --no-same-owner -xzf "$dir/$asset" -C "$dir/tree"; then
+              echo "::error::$eco: could not unpack $asset from $tag"
+              return 2
+            fi
+            sum=$(.github/scripts/content-digest.sh "$dir/tree") || return 2
+            if [ "$sum" != "$digest" ]; then
+              echo "::error::$eco: $asset on $tag unpacks to content digest $sum, but the plan says $digest"
+              return 1
+            fi
+            rm -rf "$dir"
+          }
+
           for eco in $ECOSYSTEMS; do
             changed=$(jq -r --arg e "$eco" '.[$e].changed' "$PLAN")
             if [ "$changed" != "true" ]; then
@@ -403,16 +450,43 @@ jobs:
             # downloads the asset checks it against this value. The field can lag briefly after the
             # upload, hence the retry.
             asset_digest=""
-            for attempt in 1 2 3 4 5; do
+            for _ in 1 2 3 4 5; do
               asset_digest=$(ASSET="$asset" gh api "repos/$REPO/releases/tags/$tag" \
                 --jq '.assets[] | select(.name == env.ASSET) | .digest' || true)
-              if [ -n "$asset_digest" ]; then break; fi
+              # On an HTTP error gh can print the error body here, so only a well-formed digest counts.
+              if printf '%s' "$asset_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'; then break; fi
               sleep 5
             done
             if ! printf '%s' "$asset_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
-              echo "::error::$eco: $tag returned no usable asset digest for $asset (got '$asset_digest')"
+              echo "::error::$eco: the digest of $asset on $tag is missing or unreadable (got '$asset_digest')"
+              if [ "$state" = "published" ]; then
+                echo "::error::$eco: $tag was published before this run; if $asset is gone from it, it must be repaired by hand, otherwise rerun"
+              fi
               failed=true
               continue
+            fi
+
+            # A release created here holds the bytes pinned before the contract gate, so its digest
+            # can only be that pin.
+            if [ "$state" = "absent" ]; then
+              pinned=$(awk -v f="$ARCHIVES/$asset" '$2 == f { print $1 }' <<< "$PINNED_SUMS")
+              if [ -z "$pinned" ] || [ "$asset_digest" != "sha256:$pinned" ]; then
+                echo "::error::$eco: $tag reports $asset_digest for $asset, but this run uploaded sha256:$pinned"
+                failed=true
+                continue
+              fi
+            else
+              verdict=0
+              check_published_asset || verdict=$?
+              if [ "$verdict" -eq 2 ]; then
+                echo "::error::$eco: $asset on $tag could not be checked; rerun the workflow"
+                failed=true
+                continue
+              elif [ "$verdict" -ne 0 ]; then
+                echo "::error::$eco: $tag was published before this run and its $asset does not match the plan; releases are never deleted, so the asset must be repaired by hand"
+                failed=true
+                continue
+              fi
             fi
 
             uv run python -m explorer_db_builder.data_manifest \
@@ -423,8 +497,10 @@ jobs:
               --registry-commit "$SHA"
           done
 
-          # The loop runs past a failing ecosystem so that one run names all of them, but the step
-          # still fails, which stops the job before anything is staged.
+          # An unreadable release, a missing asset digest and a failed asset check let the loop run
+          # on, so that one run names every ecosystem they hit. Any other failure, a gh write or the
+          # manifest rewrite, stops the step at once under set -e. Either way the step fails, which
+          # stops the job before anything is staged.
           if [ "$failed" = "true" ]; then
             echo "::error::One or more data releases failed to publish; nothing will be committed."
             exit 1

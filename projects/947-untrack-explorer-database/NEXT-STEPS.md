@@ -90,7 +90,9 @@ the flip.
   `versions-index.json`; its sentinel is `javascript/index.json`, added once its data is tracked or
   consumed.
 - **Phase 3**: the fetch script takes the ecosystem list from the manifest's `ecosystems` keys, not
-  from a literal.
+  from a literal. It checks the unpacked tree against `content_digest` as well as the download
+  against `archive_sha256`: the latter only records what GitHub served when the block was written,
+  while the content digest derives from the reviewed build.
 - **Phase 4**: once the generated directories are ignored, git sees nothing under them. The two-way
   digest tripwire (`.github/scripts/check-digest-consistency.sh` and its steps in
   `build-explorer-database.yml` and `db-builder-integration.yml`) and the git-based staging in the

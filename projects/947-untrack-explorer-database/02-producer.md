@@ -178,7 +178,10 @@ cannot agree with itself.
 the bytes this run happened to build: a rerun on a different runner image or zlib version can
 produce different bytes for the same content, and phase 3 verifies the download against this field.
 GitHub returns it after upload as the asset's `digest`, in the form `sha256:<hex>`, so the workflow
-reads it back from the API rather than computing it locally.
+reads it back from the API rather than computing it locally. That check alone is not enough:
+`archive_sha256` only records what GitHub served when the block was written, or a value refreshed by
+hand after a repair, while `content_digest` is derived from the reviewed build. Phase 3 should
+therefore also check the unpacked tree against `content_digest`.
 
 ## The manifest
 
@@ -263,9 +266,10 @@ Order is load-bearing throughout.
 4. Run the contract gate (below). Publication is irreversible, so the gate precedes it.
 5. For each ecosystem whose `content_digest` differs from the committed manifest, and only for the
    ecosystems being promoted:
-   1. If a **published** release already carries the tag, skip creating it, but continue to the
-      digest read and manifest rewrite below: a run can publish and then fail before the manifest is
-      written, and this is how that run gets corrected.
+   1. If a **published** release already carries the tag, skip creating it, mark it as a pre-release
+      in case it predates that flag, and continue to the digest read and manifest rewrite below: a
+      run can publish and then fail before the manifest is written, and this is how that run gets
+      corrected.
    2. If a **draft** carries the tag, it is debris from a failed run. Delete it and start over; a
       draft has no tag behind it yet, so deleting one burns nothing.
    3. `gh release create <tag> --draft --prerelease --target <sha> --title "<ecosystem> data <date>"`.
@@ -273,7 +277,13 @@ Order is load-bearing throughout.
    5. `gh release edit <tag> --draft=false`.
    6. Read the asset's `digest` back from the API into `archive_sha256`, now that the release is
       published: a draft has no tag, so `repos/{owner}/{repo}/releases/tags/{tag}` returns 404 for
-      one.
+      one. For a release created in this run, that digest must equal the sha256 pinned right after
+      packing, since the bytes are the same. A reused release is checked rather than trusted,
+      because the tag is immutable but the asset is not: download the asset, check its sha256
+      against that digest, refuse it if it holds anything but regular files, unpack it and require
+      the tree to digest to the plan's `content_digest`. It is not compared with this run's archive,
+      whose gzip bytes reproduce only on the same runner image. A download or unpack that fails is
+      reported as worth a rerun; only a mismatch asks for a repair by hand.
    7. Rewrite that ecosystem's block in the manifest with `data_manifest`.
 6. Commit the manifest with the data, push the branch and open or update the pull request.
 
@@ -296,8 +306,21 @@ is not a check on the pull request it has just updated, so a partial publication
 request that looks mergeable while the failure sits out of sight. Stopping costs a night and no
 more. The build is deterministic from the registry and the tags derive from the content digest, so
 the next run re-derives the same tags, reuses any release this one already published through the
-state check in step 4.i, deletes any draft left between create and upload through step 4.ii, and
+state check in step 5.i, deletes any draft left between create and upload through step 5.ii, and
 writes the blocks that were missed.
+
+A published asset that was replaced or deleted is the exception. While the committed manifest does
+not pin its tag, every run that reaches it fails, and it stays broken until someone repairs it by
+hand, because the tag cannot move and releases are never deleted. Once the committed manifest pins
+the tag, the nightly no longer looks at that release, so a later replacement surfaces only in phase
+3's checks. To repair an asset, rebuild the archives at the commit the tag targets with the
+builder's `--emit-archives`, as the nightly does. The replacement must be that output: an archive
+made by hand with `tar czf` carries directory entries, which the check rejects. Check with
+`.github/scripts/content-digest.sh` that the unpacked archive digests to the `content_digest` the
+tag was cut from, and upload it with `gh release upload <tag> <asset> --clobber`. The new bytes can
+differ from the old ones, so if `main` already pins that tag, refresh its `archive_sha256` to the
+new asset `digest` in a pull request: the nightly rewrites only blocks whose content digest changed,
+so it will not.
 
 ## The contract gate
 
