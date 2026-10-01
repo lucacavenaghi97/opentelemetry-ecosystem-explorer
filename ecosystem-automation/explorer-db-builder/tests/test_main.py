@@ -585,12 +585,13 @@ class TestMain:
         mock_run_builder.assert_called_once_with(clean=False, ecosystem="collector", collector_audit_report=None)
         mock_exit.assert_called_once_with(0)
 
+    @patch("explorer_db_builder.main.snapshot_digests")
     @patch("explorer_db_builder.main.emit_archives")
     @patch("explorer_db_builder.main.run_builder")
     @patch("explorer_db_builder.main.sys.exit")
     @patch("explorer_db_builder.main.argparse.ArgumentParser.parse_args")
     def test_main_emits_archives_after_a_successful_build(
-        self, mock_parse_args, mock_exit, mock_run_builder, mock_emit
+        self, mock_parse_args, mock_exit, mock_run_builder, mock_emit, mock_snapshot
     ):
         from explorer_db_builder.main import main
 
@@ -602,17 +603,94 @@ class TestMain:
         mock_parse_args.return_value = mock_args
         mock_run_builder.return_value = 0
         mock_emit.return_value = 0
+        mock_snapshot.return_value = {"javaagent": "a" * 64}
 
         main()
 
-        mock_emit.assert_called_once_with(Path("archives-out"))
+        mock_emit.assert_called_once_with(Path("archives-out"), {"javaagent": "a" * 64})
         mock_exit.assert_called_once_with(0)
 
+    @patch("explorer_db_builder.main.snapshot_digests")
     @patch("explorer_db_builder.main.emit_archives")
     @patch("explorer_db_builder.main.run_builder")
     @patch("explorer_db_builder.main.sys.exit")
     @patch("explorer_db_builder.main.argparse.ArgumentParser.parse_args")
-    def test_main_skips_archives_when_the_build_failed(self, mock_parse_args, mock_exit, mock_run_builder, mock_emit):
+    def test_main_snapshots_digests_before_the_build_cleans(
+        self, mock_parse_args, mock_exit, mock_run_builder, mock_emit, mock_snapshot
+    ):
+        from explorer_db_builder.main import main
+
+        mock_args = MagicMock()
+        mock_args.clean = True
+        mock_args.ecosystem = "all"
+        mock_args.collector_audit_report = None
+        mock_args.emit_archives = "archives-out"
+        mock_parse_args.return_value = mock_args
+        mock_run_builder.return_value = 0
+        mock_emit.return_value = 0
+        manager = MagicMock()
+        manager.attach_mock(mock_snapshot, "snapshot_digests")
+        manager.attach_mock(mock_run_builder, "run_builder")
+        manager.attach_mock(mock_emit, "emit_archives")
+
+        main()
+
+        assert [c[0] for c in manager.mock_calls] == ["snapshot_digests", "run_builder", "emit_archives"]
+
+    @patch("explorer_db_builder.main.snapshot_digests")
+    @patch("explorer_db_builder.main.emit_archives")
+    @patch("explorer_db_builder.main.run_builder")
+    @patch("explorer_db_builder.main.sys.exit")
+    @patch("explorer_db_builder.main.argparse.ArgumentParser.parse_args")
+    def test_main_fails_without_building_when_the_snapshot_fails(
+        self, mock_parse_args, mock_exit, mock_run_builder, mock_emit, mock_snapshot
+    ):
+        from explorer_db_builder.main import main
+
+        mock_args = MagicMock()
+        mock_args.clean = True
+        mock_args.ecosystem = "all"
+        mock_args.collector_audit_report = None
+        mock_args.emit_archives = "archives-out"
+        mock_parse_args.return_value = mock_args
+        mock_snapshot.side_effect = OSError("unreadable")
+
+        main()
+
+        mock_run_builder.assert_not_called()
+        mock_emit.assert_not_called()
+        mock_exit.assert_called_once_with(1)
+
+    @patch("explorer_db_builder.main.snapshot_digests")
+    @patch("explorer_db_builder.main.run_builder")
+    @patch("explorer_db_builder.main.sys.exit")
+    @patch("explorer_db_builder.main.argparse.ArgumentParser.parse_args")
+    def test_main_skips_the_snapshot_without_archives(
+        self, mock_parse_args, mock_exit, mock_run_builder, mock_snapshot
+    ):
+        from explorer_db_builder.main import main
+
+        mock_args = MagicMock()
+        mock_args.clean = True
+        mock_args.ecosystem = "all"
+        mock_args.collector_audit_report = None
+        mock_args.emit_archives = None
+        mock_parse_args.return_value = mock_args
+        mock_run_builder.return_value = 0
+
+        main()
+
+        mock_snapshot.assert_not_called()
+        mock_exit.assert_called_once_with(0)
+
+    @patch("explorer_db_builder.main.snapshot_digests")
+    @patch("explorer_db_builder.main.emit_archives")
+    @patch("explorer_db_builder.main.run_builder")
+    @patch("explorer_db_builder.main.sys.exit")
+    @patch("explorer_db_builder.main.argparse.ArgumentParser.parse_args")
+    def test_main_skips_archives_when_the_build_failed(
+        self, mock_parse_args, mock_exit, mock_run_builder, mock_emit, mock_snapshot
+    ):
         from explorer_db_builder.main import main
 
         mock_args = MagicMock()
@@ -628,10 +706,13 @@ class TestMain:
         mock_emit.assert_not_called()
         mock_exit.assert_called_once_with(1)
 
+    @patch("explorer_db_builder.main.snapshot_digests")
     @patch("explorer_db_builder.main.emit_archives")
     @patch("explorer_db_builder.main.run_builder")
     @patch("explorer_db_builder.main.argparse.ArgumentParser.parse_args")
-    def test_main_rejects_archives_for_a_single_ecosystem(self, mock_parse_args, mock_run_builder, mock_emit):
+    def test_main_rejects_archives_for_a_single_ecosystem(
+        self, mock_parse_args, mock_run_builder, mock_emit, mock_snapshot
+    ):
         from explorer_db_builder.main import main
 
         mock_args = MagicMock()
@@ -647,6 +728,7 @@ class TestMain:
         assert excinfo.value.code == 2
         mock_run_builder.assert_not_called()
         mock_emit.assert_not_called()
+        mock_snapshot.assert_not_called()
 
 
 class TestRunBuilderOrchestrator:

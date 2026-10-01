@@ -62,8 +62,11 @@ Read this first — the review only makes sense against these mechanics.
 - **`ecosystem-explorer/public/data-manifest.json`** pins, per ecosystem, the release that carries
   that ecosystem's archive: its tag, the digest of the unpacked tree and the checksum of the
   published asset. Only the blocks whose data changed are rewritten, so a single-ecosystem
-  promotion touches one block and leaves the others untouched. A block changing without the
-  matching data changing, or the reverse, is worth asking about.
+  promotion touches one block and leaves the others untouched. The two can legitimately move
+  apart. A block changing with no data change is the first run or data a pull request regenerated
+  by hand. Data changing with no block change is a build repairing a committed tree that had
+  drifted (for example two data pull requests merged out of order), and it comes with a
+  `DB_VERSION` bump. Anything else is worth asking about.
 
 ## Mental model: why *historical* versions get rewritten
 

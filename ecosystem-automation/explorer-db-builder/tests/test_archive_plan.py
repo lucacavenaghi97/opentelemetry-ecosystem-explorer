@@ -15,11 +15,14 @@
 """Tests for the archive plan the nightly workflow consumes."""
 
 import json
+import shutil
 
-from explorer_db_builder.archive_plan import PLAN_FILENAME, emit_archives
+from explorer_db_builder.archive_plan import PLAN_FILENAME, emit_archives, snapshot_digests
 from explorer_db_builder.archive_writer import release_tag, tree_digest
 from explorer_db_builder.data_manifest import update_entry, write_manifest
 from explorer_db_builder.ecosystems import ECOSYSTEMS
+
+NO_PREVIOUS = dict.fromkeys(ECOSYSTEMS)
 
 
 def build_data_root(root):
@@ -34,7 +37,7 @@ def test_emit_archives_writes_one_archive_and_a_plan_entry_per_ecosystem(tmp_pat
     data_root = build_data_root(tmp_path / "data")
     output = tmp_path / "archives"
 
-    exit_code = emit_archives(output, data_root=data_root, manifest_path=tmp_path / "absent.json")
+    exit_code = emit_archives(output, NO_PREVIOUS, data_root=data_root, manifest_path=tmp_path / "absent.json")
 
     assert exit_code == 0
     plan = json.loads((output / PLAN_FILENAME).read_text())
@@ -64,7 +67,7 @@ def test_emit_archives_marks_matching_content_unchanged(tmp_path):
     )
     output = tmp_path / "archives"
 
-    emit_archives(output, data_root=data_root, manifest_path=manifest_path)
+    emit_archives(output, NO_PREVIOUS, data_root=data_root, manifest_path=manifest_path)
 
     plan = json.loads((output / PLAN_FILENAME).read_text())
     assert plan["collector"]["changed"] is False
@@ -76,7 +79,7 @@ def test_emit_archives_reports_every_missing_ecosystem_and_writes_nothing(tmp_pa
     (data_root / "collector").mkdir(parents=True)
     output = tmp_path / "archives"
 
-    exit_code = emit_archives(output, data_root=data_root, manifest_path=tmp_path / "absent.json")
+    exit_code = emit_archives(output, NO_PREVIOUS, data_root=data_root, manifest_path=tmp_path / "absent.json")
 
     assert exit_code == 1
     # Validation happens before any packing, so no partial output is left behind.
@@ -87,8 +90,8 @@ def test_emit_archives_reports_every_missing_ecosystem_and_writes_nothing(tmp_pa
 def test_emit_archives_is_deterministic(tmp_path):
     data_root = build_data_root(tmp_path / "data")
 
-    emit_archives(tmp_path / "first", data_root=data_root, manifest_path=tmp_path / "absent.json")
-    emit_archives(tmp_path / "second", data_root=data_root, manifest_path=tmp_path / "absent.json")
+    emit_archives(tmp_path / "first", NO_PREVIOUS, data_root=data_root, manifest_path=tmp_path / "absent.json")
+    emit_archives(tmp_path / "second", NO_PREVIOUS, data_root=data_root, manifest_path=tmp_path / "absent.json")
 
     for ecosystem in ECOSYSTEMS:
         first = (tmp_path / "first" / f"{ecosystem}.tar.gz").read_bytes()
@@ -104,7 +107,7 @@ def test_emit_archives_refuses_an_empty_ecosystem_directory(tmp_path):
         path.unlink()
     output = tmp_path / "archives"
 
-    exit_code = emit_archives(output, data_root=data_root, manifest_path=tmp_path / "absent.json")
+    exit_code = emit_archives(output, NO_PREVIOUS, data_root=data_root, manifest_path=tmp_path / "absent.json")
 
     assert exit_code == 1
     assert not (output / PLAN_FILENAME).exists()
@@ -117,7 +120,7 @@ def test_emit_archives_removes_a_stale_plan_from_a_failed_run(tmp_path):
     (output / PLAN_FILENAME).write_text('{"javaagent": {"content_digest": "stale"}}')
     (data_root / "configuration" / "configuration.json").unlink()
 
-    exit_code = emit_archives(output, data_root=data_root, manifest_path=tmp_path / "absent.json")
+    exit_code = emit_archives(output, NO_PREVIOUS, data_root=data_root, manifest_path=tmp_path / "absent.json")
 
     assert exit_code == 1
     assert not (output / PLAN_FILENAME).exists()
@@ -128,7 +131,7 @@ def test_emit_archives_reports_a_malformed_manifest_without_a_traceback(tmp_path
     manifest_path = tmp_path / "data-manifest.json"
     manifest_path.write_text("{ not json")
 
-    exit_code = emit_archives(tmp_path / "archives", data_root=data_root, manifest_path=manifest_path)
+    exit_code = emit_archives(tmp_path / "archives", NO_PREVIOUS, data_root=data_root, manifest_path=manifest_path)
 
     assert exit_code == 1
 
@@ -144,7 +147,37 @@ def test_emit_archives_refuses_a_directory_holding_only_symlinks(tmp_path):
     (data_root / "configuration" / "link.json").symlink_to(target)
     output = tmp_path / "archives"
 
-    exit_code = emit_archives(output, data_root=data_root, manifest_path=tmp_path / "absent.json")
+    exit_code = emit_archives(output, NO_PREVIOUS, data_root=data_root, manifest_path=tmp_path / "absent.json")
 
     assert exit_code == 1
     assert not (output / PLAN_FILENAME).exists()
+
+
+def test_snapshot_digests_returns_none_for_a_missing_directory(tmp_path):
+    data_root = build_data_root(tmp_path / "data")
+    shutil.rmtree(data_root / "javascript")
+
+    snapshot = snapshot_digests(data_root)
+
+    assert list(snapshot) == list(ECOSYSTEMS)
+    assert snapshot["javascript"] is None
+
+
+def test_snapshot_digests_matches_the_tree_digest(tmp_path):
+    data_root = build_data_root(tmp_path / "data")
+
+    snapshot = snapshot_digests(data_root)
+
+    assert snapshot == {ecosystem: tree_digest(data_root / ecosystem) for ecosystem in ECOSYSTEMS}
+
+
+def test_emit_archives_records_the_previous_digest(tmp_path):
+    data_root = build_data_root(tmp_path / "data")
+    previous = {**NO_PREVIOUS, "collector": "a" * 64}
+    output = tmp_path / "archives"
+
+    emit_archives(output, previous, data_root=data_root, manifest_path=tmp_path / "absent.json")
+
+    plan = json.loads((output / PLAN_FILENAME).read_text())
+    assert plan["collector"]["previous_digest"] == "a" * 64
+    assert plan["javascript"]["previous_digest"] is None

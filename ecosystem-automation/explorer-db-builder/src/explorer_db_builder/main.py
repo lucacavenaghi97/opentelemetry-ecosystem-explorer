@@ -23,7 +23,7 @@ from typing import Optional
 from semantic_version import Version
 from watcher_common.inventory_manager import JavaagentInventoryManager
 
-from explorer_db_builder.archive_plan import emit_archives
+from explorer_db_builder.archive_plan import emit_archives, snapshot_digests
 from explorer_db_builder.collector_builder import run_collector_builder
 from explorer_db_builder.configuration_aggregator import build_global_configurations
 from explorer_db_builder.configuration_builder import run_configuration_builder
@@ -392,16 +392,27 @@ def main() -> None:
     logger.info("=" * 60)
     logger.info("")
 
-    exit_code = run_builder(
-        clean=args.clean,
-        ecosystem=args.ecosystem,
-        collector_audit_report=args.collector_audit_report,
-    )
+    exit_code = 0
+    previous_digests: dict[str, Optional[str]] = {}
+    if args.emit_archives:
+        # Must run before any pipeline cleans its directory, or it digests the new build instead.
+        try:
+            previous_digests = snapshot_digests()
+        except (ValueError, OSError) as error:
+            logger.error(f"❌ {error}")
+            exit_code = 1
+
+    if exit_code == 0:
+        exit_code = run_builder(
+            clean=args.clean,
+            ecosystem=args.ecosystem,
+            collector_audit_report=args.collector_audit_report,
+        )
 
     # Archiving reads the built tree, so it only runs once every selected pipeline succeeded.
     if exit_code == 0 and args.emit_archives:
         logger.info("--- Archives ---")
-        exit_code = emit_archives(Path(args.emit_archives))
+        exit_code = emit_archives(Path(args.emit_archives), previous_digests)
 
     sys.exit(exit_code)
 

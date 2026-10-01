@@ -88,12 +88,12 @@ cannot notice that a file it wrote earlier no longer hashes to its own name.
 `--emit-archives DIR` requires `--ecosystem all`, because the plan it writes describes every
 ecosystem and a single-pipeline build would pin digests for trees it did not produce. It packs each
 ecosystem directory into a byte-reproducible `DIR/<ecosystem>.tar.gz` and writes
-`DIR/archive-plan.json` beside them, recording each ecosystem's content digest, the release tag that
-digest implies, the asset name, and whether it differs from the digest pinned in
-`ecosystem-explorer/public/data-manifest.json`. That digest comparison is what lets the workflow
-skip republishing unchanged data; the archive bytes play no part in it. The archives are
-byte-reproducible for a different reason, so that rebuilding the same registry state does not churn
-an already published asset.
+`DIR/archive-plan.json` beside them, recording each ecosystem's content digest, the digest of the
+same directory before the build cleaned it, the release tag that digest implies, the asset name, and
+whether it differs from the digest pinned in `ecosystem-explorer/public/data-manifest.json`. That
+digest comparison is what lets the workflow skip republishing unchanged data; the archive bytes play
+no part in it. The archives are byte-reproducible for a different reason, so that rebuilding the
+same registry state does not churn an already published asset.
 
 The manifest itself is written separately, once a release exists, because it records the published
 asset's checksum rather than the bytes a given run happened to compress:

@@ -31,8 +31,24 @@ logger = logging.getLogger(__name__)
 PLAN_FILENAME = "archive-plan.json"
 
 
+def snapshot_digests(data_root: Path = DATA_ROOT) -> dict[str, str | None]:
+    """Digest every ecosystem directory as it stands, before a build replaces it.
+
+    Args:
+        data_root: Directory holding the generated ecosystem directories.
+
+    Returns:
+        Each ecosystem's tree digest, or None where its directory does not exist.
+    """
+    return {
+        ecosystem: tree_digest(data_root / ecosystem) if (data_root / ecosystem).is_dir() else None
+        for ecosystem in ECOSYSTEMS
+    }
+
+
 def emit_archives(
     output_dir: Path,
+    previous_digests: dict[str, str | None],
     data_root: Path = DATA_ROOT,
     manifest_path: Path = MANIFEST_PATH,
 ) -> int:
@@ -40,6 +56,8 @@ def emit_archives(
 
     Args:
         output_dir: Directory to write the archives and archive-plan.json into.
+        previous_digests: Each ecosystem's digest before the build, from snapshot_digests. Recorded
+            in the plan so the workflow can check the digest against what git saw change.
         data_root: Directory holding the generated ecosystem directories.
         manifest_path: Committed manifest, read to decide which ecosystems changed.
 
@@ -80,6 +98,7 @@ def emit_archives(
             changed = committed_digest(manifest, ecosystem) != digest
             plan[ecosystem] = {
                 "content_digest": digest,
+                "previous_digest": previous_digests[ecosystem],
                 "release_tag": release_tag(ecosystem, digest),
                 "asset": asset_name(ecosystem),
                 "changed": changed,

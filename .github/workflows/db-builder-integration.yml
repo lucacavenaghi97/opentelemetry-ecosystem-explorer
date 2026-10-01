@@ -7,7 +7,8 @@ on:
       - "ecosystem-automation/watcher-common/**"
       - "ecosystem-registry/**"
       - "ecosystem-explorer/src/lib/api/**"
-      # The contract gate calls these, so a pull request touching only them must still run.
+      # The checks below call these, so a pull request touching only them must still run.
+      - ".github/scripts/check-digest-consistency.sh"
       - ".github/scripts/content-digest.sh"
       - ".github/scripts/unpack-archives.sh"
       - ".github/workflows/db-builder-integration.yml"
@@ -54,6 +55,11 @@ jobs:
 
       - name: Build DB
         run: uv run explorer-db-builder --clean --emit-archives "${RUNNER_TEMP}/archives"
+
+      # Only after this first build: the second one below would see this build's output as the
+      # tree before it, which no longer matches HEAD on a pull request that changes the output.
+      - name: Tree digests agree with git
+        run: .github/scripts/check-digest-consistency.sh "${RUNNER_TEMP}/archives/archive-plan.json"
 
       # The builder's plan is the source of truth for which ecosystems exist, so the checks below
       # cover a new one without being edited.

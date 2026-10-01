@@ -38,8 +38,8 @@ consumes either yet.
   computes its `content_digest`. Exposed behind a new CLI flag. A second module rewrites one
   ecosystem's block in `data-manifest.json`; the workflow calls it after the release publishes,
   because `archive_sha256` must be the published asset's digest, not the bytes this run built.
-- Digest-based change detection in the nightly, running alongside the existing `git diff` check,
-  with a one-directional tripwire between them.
+- Digest-based change detection in the nightly, with git as an independent check on the digest: the
+  tree digest before and after the build must agree with what git sees change.
 - A contract gate before upload: remove the generated directories, unpack the archives over the
   empty space, assert the tree matches what was just built, then run the integration suite.
 - Release publication: draft, upload, publish, all of it before the branch push.
@@ -222,23 +222,31 @@ every data pull request.
 
 ## Change detection during the dual run
 
-The data is still committed in this phase, so both detectors are available and the run compares
-them.
+The data is still committed in this phase, so git is available as an independent observer of the
+digest. The builder digests each ecosystem directory twice: once before the build cleans it
+(`previous_digest`) and once after (`content_digest`). Both values go into `archive-plan.json`.
 
-- **The data diff**, `git diff` over `public/data/<ecosystem>/`, still drives committing the data
-  and the `DB_VERSION` bump, exactly as today.
-- **The manifest diff**, the freshly computed `content_digest` against the value in the committed
-  manifest, drives which releases get published and which manifest blocks get rewritten.
+- **The tripwire**, `previous_digest` against `content_digest` on one side and `git status` over
+  `public/data/<ecosystem>/` on the other, for every ecosystem. Both compare the same two trees, so
+  any disagreement in either direction means the digest is wrong, and the run **hard fails**. This
+  is the reason the two run side by side before phase 4 removes git as the reference. It holds only
+  on the first build after a fresh checkout, where the tree before the build is `HEAD`.
+- **The data diff**, the same before-and-after comparison, drives committing the data and the
+  `DB_VERSION` bump.
+- **The manifest diff**, `content_digest` against the value in the committed manifest, drives which
+  releases get published and which manifest blocks get rewritten, and nothing else.
 
-The tripwire between them is **one-directional**, because only one direction is a bug:
+The data diff and the manifest diff answer different questions, so they may legitimately disagree:
 
-- Git sees changes and the digest does not: **hard fail**. The digest code is wrong, and this is the
-  whole reason the two run side by side before phase 4 removes git as the reference.
-- The digest sees changes and git is clean: publish and open a manifest-only pull request, **with no
-  `DB_VERSION` bump**. This is the normal bootstrap on the first run, and afterwards it is how a
+- The manifest changed and the data did not: publish and open a manifest-only pull request, **with
+  no `DB_VERSION` bump**. This is the normal bootstrap on the first run, and afterwards it is how a
   human pull request that regenerated data without updating the manifest gets corrected.
+- The data changed and the manifest did not: the committed tree had drifted from what a build
+  produces, for example two data pull requests merged out of order, while the manifest already pins
+  the correct output. The data is committed with a `DB_VERSION` bump and nothing is published. The
+  contract gate still runs, because the pull request carries the unpacked archives.
 
-Because the two diffs can now fire independently, `git add` must name
+Because the two diffs can fire independently, `git add` must name
 `ecosystem-explorer/public/data-manifest.json` explicitly: it sits outside `public/data/` and the
 existing `git add ecosystem-explorer/public/data/` does not reach it.
 
@@ -247,10 +255,14 @@ existing `git add ecosystem-explorer/public/data/` does not reach it.
 Order is load-bearing throughout.
 
 1. Build clean, every ecosystem.
-2. Emit the archives and, beside them, `archive-plan.json`: each ecosystem's tree digest, the tag
-   that digest implies, the asset name, and whether it differs from the committed manifest.
-3. Run the contract gate (below). Publication is irreversible, so the gate precedes it.
-4. For each ecosystem whose digest changed, and only for the ecosystems being promoted:
+2. Emit the archives and, beside them, `archive-plan.json`: each ecosystem's tree digest before and
+   after the build, the tag that digest implies, the asset name, and whether it differs from the
+   committed manifest.
+3. Run the two-way tripwire: git and the tree digest must agree on which ecosystems the build
+   changed, or the run stops.
+4. Run the contract gate (below). Publication is irreversible, so the gate precedes it.
+5. For each ecosystem whose `content_digest` differs from the committed manifest, and only for the
+   ecosystems being promoted:
    1. If a **published** release already carries the tag, skip creating it, but continue to the
       digest read and manifest rewrite below: a run can publish and then fail before the manifest is
       written, and this is how that run gets corrected.
@@ -263,7 +275,7 @@ Order is load-bearing throughout.
       published: a draft has no tag, so `repos/{owner}/{repo}/releases/tags/{tag}` returns 404 for
       one.
    7. Rewrite that ecosystem's block in the manifest with `data_manifest`.
-5. Commit the manifest with the data, push the branch and open or update the pull request.
+6. Commit the manifest with the data, push the branch and open or update the pull request.
 
 Each release is created as a **pre-release**. That is what keeps a nightly data drop off the
 repository's front page: GitHub picks its Latest release from the non-draft, non-prerelease ones.
@@ -311,7 +323,8 @@ relevant pull request. Packing the **real** tree twice and comparing sha256 is t
 that matters; the proof above used three short paths, while the real corpus has paths long enough to
 take the GNU `LongLink` header path. Plus the `rm -rf` round trip, the `content_digest` against the
 shell equivalent above, the prettier-cleanliness of the manifest, and the property that a run
-rewrites only the blocks whose digest changed.
+rewrites only the blocks whose digest changed. After its first build it also runs the tripwire, so
+the tree digest is checked against git on every such pull request.
 
 **The release path, by `workflow_dispatch` on a fork.** A personal fork carries none of the
 organization's rulesets, so its tags are disposable. Run it twice and assert the second run creates
@@ -328,16 +341,16 @@ request as well.
 
 ## Tasks
 
-| #   | Task                                                            | Deliverable                                                                                                |
-| --- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 1   | Always build clean and build every ecosystem                    | The dispatch input selects promotion only; the two build steps collapse                                    |
-| 2   | Pack deterministic archives and compute both digests            | Packing the real tree twice yields the same sha256                                                         |
-| 3   | Emit and merge `data-manifest.json`                             | Only changed blocks are rewritten; `format:check` passes                                                   |
-| 4   | Digest-based change detection plus the one-directional tripwire | A digest bug fails the run; a stale manifest opens a manifest-only PR                                      |
-| 5   | The contract gate before upload                                 | `rm -rf`, unpack, digests match, integration suite green                                                   |
-| 6   | Publish releases in order                                       | Draft, upload, publish, read back the digest, all before the push                                          |
-| 7   | Cover the computation in `db-builder-integration.yml`           | Determinism, round trip, digest, prettier and block-rewrite all asserted                                   |
-| 8   | Rehearse the release path on a fork                             | Done: three pre-releases, an unchanged rerun that published nothing, bytes verified from the anonymous URL |
+| #   | Task                                                    | Deliverable                                                                                                |
+| --- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 1   | Always build clean and build every ecosystem            | The dispatch input selects promotion only; the two build steps collapse                                    |
+| 2   | Pack deterministic archives and compute both digests    | Packing the real tree twice yields the same sha256                                                         |
+| 3   | Emit and merge `data-manifest.json`                     | Only changed blocks are rewritten; `format:check` passes                                                   |
+| 4   | Digest-based change detection plus the two-way tripwire | A digest bug fails the run; a stale manifest opens a manifest-only PR; repaired drift commits data only    |
+| 5   | The contract gate before upload                         | `rm -rf`, unpack, digests match, integration suite green                                                   |
+| 6   | Publish releases in order                               | Draft, upload, publish, read back the digest, all before the push                                          |
+| 7   | Cover the computation in `db-builder-integration.yml`   | Determinism, round trip, digest, digest against git, prettier and block-rewrite all asserted               |
+| 8   | Rehearse the release path on a fork                     | Done: three pre-releases, an unchanged rerun that published nothing, bytes verified from the anonymous URL |
 
 ## Acceptance criteria
 
@@ -346,7 +359,9 @@ request as well.
 - `content_digest` matches the documented shell equivalent for every ecosystem.
 - `archive_sha256` is the published asset's digest as GitHub reports it.
 - A run whose content is unchanged publishes nothing and rewrites no manifest block.
-- Git seeing changes that the digest does not fails the run.
+- Git and the before-and-after tree digest disagreeing, in either direction, fails the run.
+- Data that changed under an unchanged manifest is committed with a `DB_VERSION` bump, publishes
+  nothing, and still passes the contract gate.
 - The contract gate runs against the unpacked archives, not the build directory.
 - No release carries the Latest badge, and `GET /releases/latest` finds nothing.
 - A publication that does not complete commits nothing, pushes nothing and fails the run.
