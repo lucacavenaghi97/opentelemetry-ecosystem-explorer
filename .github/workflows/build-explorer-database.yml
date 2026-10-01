@@ -103,8 +103,7 @@ jobs:
 
       # Always clean and always every ecosystem: the builder's incremental mode reads back its own
       # previous output, which carries silent corruption forward and never sweeps stale version
-      # indexes. Measured at 12.34s clean against 12.50s warm incremental, so there is nothing to
-      # win. The dispatch input selects what gets promoted, not what gets built.
+      # indexes.
       - name: Build explorer database
         run: |
           set -euo pipefail
