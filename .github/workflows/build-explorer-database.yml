@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       ecosystem:
-        description: "Ecosystem to promote (the build always covers all three)"
+        description: "Ecosystem to promote (the build always covers every ecosystem)"
         required: true
         type: choice
         options:
@@ -137,13 +137,20 @@ jobs:
           PLAN: ${{ runner.temp }}/archives/archive-plan.json
         run: |
           set -euo pipefail
-          # The builder is the source of truth for which ecosystems exist; assert it still matches
-          # what unpack-archives.sh checks, so the two lists cannot drift apart silently.
-          test "$(jq -r 'keys | join(" ")' "$PLAN")" = "collector configuration javaagent"
+          # The builder's plan is the source of truth for which ecosystems exist.
+          all=$(jq -r 'keys | join(" ")' "$PLAN")
+          if [ -z "$all" ]; then
+            echo "::error::the archive plan lists no ecosystems"
+            exit 1
+          fi
+          echo "all=$all" >> "$GITHUB_OUTPUT"
           if [ "$PROMOTE" = "all" ]; then
-            echo "ecosystems=collector configuration javaagent" >> "$GITHUB_OUTPUT"
-          else
+            echo "ecosystems=$all" >> "$GITHUB_OUTPUT"
+          elif jq -e --arg e "$PROMOTE" 'has($e)' "$PLAN" >/dev/null; then
             echo "ecosystems=$PROMOTE" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::cannot promote $PROMOTE: the archive plan only has $all"
+            exit 1
           fi
 
       # Only on the upstream repository: a fork usually has issues disabled, where `gh issue list`
@@ -290,12 +297,14 @@ jobs:
         if: steps.check_changes.outputs.manifest_changed == 'true'
         env:
           ARCHIVES: ${{ runner.temp }}/archives
+          ALL_ECOSYSTEMS: ${{ steps.promote.outputs.all }}
         run: |
           set -euo pipefail
           cp -a ecosystem-explorer/public/data "${RUNNER_TEMP}/built-tree"
-          .github/scripts/unpack-archives.sh "$ARCHIVES"
+          read -ra ecosystems <<< "$ALL_ECOSYSTEMS"
+          .github/scripts/unpack-archives.sh "$ARCHIVES" "${ecosystems[@]}"
 
-          for eco in collector configuration javaagent; do
+          for eco in "${ecosystems[@]}"; do
             # diff -r catches what a digest comparison cannot: both digests come from the same
             # file-selection code, so a file the archive silently omits would agree with itself.
             diff -r --no-dereference "${RUNNER_TEMP}/built-tree/$eco" "ecosystem-explorer/public/data/$eco"

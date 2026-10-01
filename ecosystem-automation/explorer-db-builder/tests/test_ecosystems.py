@@ -20,10 +20,11 @@ from explorer_db_builder import configuration_builder
 from explorer_db_builder.collector_database_writer import CollectorDatabaseWriter
 from explorer_db_builder.database_writer import DatabaseWriter
 from explorer_db_builder.ecosystems import DATA_ROOT, ECOSYSTEMS, ecosystem_dir
+from explorer_db_builder.javascript_database_writer import JavascriptDatabaseWriter
 
 
-def test_ecosystems_are_the_three_generated_directories():
-    assert ECOSYSTEMS == ("collector", "configuration", "javaagent")
+def test_ecosystems_are_the_generated_directories():
+    assert ECOSYSTEMS == ("collector", "configuration", "javaagent", "javascript")
 
 
 def test_every_ecosystem_lives_under_the_data_root():
@@ -32,11 +33,18 @@ def test_every_ecosystem_lives_under_the_data_root():
 
 
 def test_topology_matches_the_writers_that_own_the_directories():
-    # These three defaults are the real source of truth for where output lands. If one moves and
+    # The writers' defaults are the real source of truth for where output lands. If one moves and
     # ecosystems.py is not updated, emit_archives would silently stop archiving that pipeline.
-    assert ecosystem_dir("javaagent") == Path(DatabaseWriter().database_dir)
-    assert ecosystem_dir("collector") == Path(CollectorDatabaseWriter().database_dir)
-    assert ecosystem_dir("configuration") == Path(configuration_builder.OUTPUT_DIR)
+    dirs = {
+        "collector": CollectorDatabaseWriter().database_dir,
+        "configuration": configuration_builder.OUTPUT_DIR,
+        "javaagent": DatabaseWriter().database_dir,
+        "javascript": JavascriptDatabaseWriter().database_dir,
+    }
+
+    assert set(dirs) == set(ECOSYSTEMS)
+    for ecosystem, directory in dirs.items():
+        assert ecosystem_dir(ecosystem) == Path(directory)
 
 
 def test_ecosystem_dir_rejects_an_unknown_name():

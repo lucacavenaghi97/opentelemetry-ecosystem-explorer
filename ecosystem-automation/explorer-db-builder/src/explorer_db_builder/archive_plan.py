@@ -40,7 +40,7 @@ def emit_archives(
 
     Args:
         output_dir: Directory to write the archives and archive-plan.json into.
-        data_root: Directory holding the three generated ecosystem directories.
+        data_root: Directory holding the generated ecosystem directories.
         manifest_path: Committed manifest, read to decide which ecosystems changed.
 
     Returns:

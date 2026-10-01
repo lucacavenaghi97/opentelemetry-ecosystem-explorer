@@ -4,7 +4,7 @@ issue: 947
 type: plan
 phase: 2
 status: in-progress
-last_updated: "2026-09-24"
+last_updated: "2026-10-01"
 ---
 
 > [!NOTE]
@@ -30,7 +30,7 @@ consumes either yet.
 
 ## Scope (in)
 
-- Build from empty and build all three ecosystems on every run
+- Build from empty and build every ecosystem on every run
   ([`design-decisions.md` §1](./design-decisions.md#1-build-topology-always-from-empty)). The
   `ecosystem` dispatch input stops selecting what is **built** and starts selecting what is
   **promoted**.
@@ -40,8 +40,8 @@ consumes either yet.
   because `archive_sha256` must be the published asset's digest, not the bytes this run built.
 - Digest-based change detection in the nightly, running alongside the existing `git diff` check,
   with a one-directional tripwire between them.
-- A contract gate before upload: remove the three generated directories, unpack the archives over
-  the empty space, assert the tree matches what was just built, then run the integration suite.
+- A contract gate before upload: remove the generated directories, unpack the archives over the
+  empty space, assert the tree matches what was just built, then run the integration suite.
 - Release publication: draft, upload, publish, all of it before the branch push.
 - The manifest committed at `ecosystem-explorer/public/data-manifest.json`, added to the automated
   pull request alongside the data.
@@ -197,7 +197,8 @@ would make the promotion merge build nothing at all, with a green check.
       "registry_commit": "979b9046..."
     },
     "configuration": { "...": "..." },
-    "javaagent": { "...": "..." }
+    "javaagent": { "...": "..." },
+    "javascript": { "...": "..." }
   }
 }
 ```
@@ -245,7 +246,7 @@ existing `git add ecosystem-explorer/public/data/` does not reach it.
 
 Order is load-bearing throughout.
 
-1. Build clean, all three ecosystems.
+1. Build clean, every ecosystem.
 2. Emit the archives and, beside them, `archive-plan.json`: each ecosystem's tree digest, the tag
    that digest implies, the asset name, and whether it differs from the committed manifest.
 3. Run the contract gate (below). Publication is irreversible, so the gate precedes it.
@@ -269,7 +270,7 @@ repository's front page: GitHub picks its Latest release from the non-draft, non
 `--latest=false` was tried first and does not do this. Measured on a fork: three releases published
 with `--latest=false` on both the create and the publish call, and the most recent one still carried
 the Latest badge. The flag declines to _promote_ a release over an existing latest; it cannot leave
-a repository with no latest release at all. With all three marked as pre-releases,
+a repository with no latest release at all. With every release marked as a pre-release,
 `GET /releases/latest` returns 404 and no badge appears, while the assets stay downloadable
 anonymously.
 
@@ -292,9 +293,9 @@ writes the blocks that were missed.
 run at both ends. This is the producer end, and it runs against the bytes about to be uploaded, not
 against the build directory:
 
-1. `rm -rf` the three generated directories. Unpacking over the existing tree would hide files the
-   archive **omits**, which is the failure that matters.
-2. Unpack the three archives in their place.
+1. `rm -rf` the generated directories. Unpacking over the existing tree would hide files the archive
+   **omits**, which is the failure that matters.
+2. Unpack the archives in their place.
 3. Assert the tree matches what the builder produced, by recomputing each `content_digest`.
 4. `bun run test:integration`.
 
@@ -340,9 +341,9 @@ request as well.
 
 ## Acceptance criteria
 
-- The nightly builds from empty, all three ecosystems, on every run.
+- The nightly builds from empty, every ecosystem, on every run.
 - Packing the real tree twice produces byte-identical archives.
-- `content_digest` matches the documented shell equivalent for all three ecosystems.
+- `content_digest` matches the documented shell equivalent for every ecosystem.
 - `archive_sha256` is the published asset's digest as GitHub reports it.
 - A run whose content is unchanged publishes nothing and rewrites no manifest block.
 - Git seeing changes that the digest does not fails the run.
@@ -357,6 +358,8 @@ request as well.
 None.
 
 ## What the fork rehearsal established
+
+It covered the three ecosystems that existed then; `javascript` joined the builder with #1202.
 
 Run on 2026-09-24 against `lucacavenaghi97/opentelemetry-ecosystem-explorer` at commit `0cee03be`,
 by `workflow_dispatch`, with every `gh` call pinned to the running repository:
@@ -399,8 +402,9 @@ against it.
 - `public/data/` holds hand-maintained directories beside the generated ones, and the set grows:
   `activity/`, `announcements/`, `defaults/` and, since #1138, `semantic-conventions/`. None of them
   is builder output, so they stay tracked and stay outside every archive, and the archiving side
-  enumerates the three generated directories explicitly rather than taking whatever it finds. The
-  content id used by the `DB_VERSION` split must hash the whole of `public/data`, not the archives.
+  enumerates the generated directories (`ECOSYSTEMS`) explicitly rather than taking whatever it
+  finds. The content id used by the `DB_VERSION` split must hash the whole of `public/data`, not the
+  archives.
 - The standing credential is gone: the nightly now checks out with `persist-credentials: false` and
   the push mints its own through `gh auth setup-git`. `zizmor --persona auditor` reported
   `artipacked` twice before that change and reports it zero times after.

@@ -24,8 +24,9 @@ or a bug/regression (not fine). Most of the work here is telling those apart.
 
 Read this first — the review only makes sense against these mechanics.
 
-- **Four pipelines**: `javaagent`, `configuration`, `collector`, `javascript`. `--ecosystem` selects one (default
-  `all`). Each writes its own subtree under `ecosystem-explorer/public/data/`.
+- **One pipeline per ecosystem**: `javaagent`, `configuration`, `collector`, `javascript` (the
+  `ECOSYSTEMS` tuple in `ecosystems.py`). `--ecosystem` selects one (default `all`). Each writes
+  its own subtree under `ecosystem-explorer/public/data/`.
 - **Content addressing.** Each component version is written to `<name>-<hash>.json` where `hash` is
   a 12-char SHA-256 over the component's key-sorted, whitespace-normalized JSON
   (`content_hashing.py`). **The hash is deterministic** — identical content always yields the same

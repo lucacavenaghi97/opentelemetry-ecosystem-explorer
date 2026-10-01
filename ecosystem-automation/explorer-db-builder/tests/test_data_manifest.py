@@ -88,7 +88,7 @@ def test_read_manifest_refuses_to_silently_discard_a_populated_ecosystems_key(tm
 
 
 def test_committed_digest_survives_an_absent_null_or_corrupt_block(tmp_path):
-    # emit_archives asks this for all three ecosystems; one malformed block must leave that
+    # emit_archives asks this for every ecosystem; one malformed block must leave that
     # ecosystem unpinned rather than abort the whole archive step.
     assert committed_digest({"ecosystems": {}}, "javaagent") is None
     assert committed_digest({"ecosystems": {"javaagent": None}}, "javaagent") is None

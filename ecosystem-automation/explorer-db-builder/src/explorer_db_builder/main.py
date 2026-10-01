@@ -310,8 +310,7 @@ def run_builder(clean: bool = False, ecosystem: str = "all", collector_audit_rep
 
     Args:
         clean: If True, wipe the output directories before building.
-        ecosystem: Which pipeline to run: "javaagent", "configuration", "collector",
-            "javascript", or "all".
+        ecosystem: Which pipeline to run: one of ECOSYSTEMS, or "all".
         collector_audit_report: If set, the collector build writes a JSON report of
             active catalog components missing a display_name to this path.
 
@@ -356,7 +355,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--ecosystem",
-        choices=[*ECOSYSTEMS, "javascript", "all"],
+        choices=[*ECOSYSTEMS, "all"],
         default="all",
         help="Which ecosystem pipeline to run (default: all)",
     )
@@ -382,7 +381,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # The plan always describes every ecosystem, so archiving a single-pipeline build would pin
-    # digests and release tags for two trees this invocation did not produce.
+    # digests and release tags for trees this invocation did not produce.
     if args.emit_archives and args.ecosystem != "all":
         parser.error("--emit-archives requires --ecosystem all")
 

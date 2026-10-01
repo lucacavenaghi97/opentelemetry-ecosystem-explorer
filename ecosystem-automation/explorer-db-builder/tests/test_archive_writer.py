@@ -75,7 +75,7 @@ def test_relative_files_rejects_a_leading_dash(tmp_path):
 
 def test_relative_files_rejects_a_missing_directory(tmp_path):
     # rglob swallows a missing directory, so without this both tree_digest and pack would quietly
-    # report an empty tree: three empty archives published under legitimate-looking tags.
+    # report an empty tree: empty archives published under legitimate-looking tags.
     with pytest.raises(ValueError, match="not a directory"):
         relative_files(tmp_path / "absent")
 

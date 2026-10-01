@@ -14,18 +14,18 @@
 #
 """Where each ecosystem's generated database lives.
 
-The three writers each carry their own output directory as a default argument, and main.py carries
-the list of pipeline names. This module is the one place the archiving side reads that topology
-from, and tests/test_ecosystems.py fails if the two ever drift.
+Each writer carries its own output directory as a default argument, and main.py carries the
+pipelines. This module is the one place the archiving side reads that topology from.
+tests/test_ecosystems.py and tests/test_main.py fail if this drifts from the writers or the pipelines.
 """
 
 from pathlib import Path
 
-# Relative to the repository root, matching the three writers' own defaults. The builder is always
+# Relative to the repository root, matching the writers' own defaults. The builder is always
 # invoked from the root; emit_archives reports the expected working directory if it is not.
 DATA_ROOT = Path("ecosystem-explorer/public/data")
 
-ECOSYSTEMS = ("collector", "configuration", "javaagent")
+ECOSYSTEMS = ("collector", "configuration", "javaagent", "javascript")
 
 
 def ecosystem_dir(ecosystem: str) -> Path:

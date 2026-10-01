@@ -55,14 +55,29 @@ jobs:
       - name: Build DB
         run: uv run explorer-db-builder --clean --emit-archives "${RUNNER_TEMP}/archives"
 
+      # The builder's plan is the source of truth for which ecosystems exist, so the checks below
+      # cover a new one without being edited.
+      - name: List the archived ecosystems
+        id: ecosystems
+        run: |
+          set -euo pipefail
+          all=$(jq -r 'keys | join(" ")' "${RUNNER_TEMP}/archives/archive-plan.json")
+          if [ -z "$all" ]; then
+            echo "::error::the archive plan lists no ecosystems"
+            exit 1
+          fi
+          echo "all=$all" >> "$GITHUB_OUTPUT"
+
       # The real corpus has paths over 100 bytes, which take the GNU LongLink header, and file
       # counts a temp-directory tree never reaches. Packing it twice is the only determinism check
       # that covers what actually ships.
       - name: Archives are byte-reproducible
+        env:
+          ECOSYSTEMS: ${{ steps.ecosystems.outputs.all }}
         run: |
           set -euo pipefail
           uv run explorer-db-builder --clean --emit-archives "${RUNNER_TEMP}/archives-again"
-          for eco in collector configuration javaagent; do
+          for eco in $ECOSYSTEMS; do
             first=$(sha256sum "${RUNNER_TEMP}/archives/$eco.tar.gz" | cut -d' ' -f1)
             second=$(sha256sum "${RUNNER_TEMP}/archives-again/$eco.tar.gz" | cut -d' ' -f1)
             if [ "$first" != "$second" ]; then
@@ -72,9 +87,11 @@ jobs:
           done
 
       - name: Tree digests match an independent implementation
+        env:
+          ECOSYSTEMS: ${{ steps.ecosystems.outputs.all }}
         run: |
           set -euo pipefail
-          for eco in collector configuration javaagent; do
+          for eco in $ECOSYSTEMS; do
             expected=$(jq -r --arg e "$eco" '.[$e].content_digest' "${RUNNER_TEMP}/archives/archive-plan.json")
             actual=$(.github/scripts/content-digest.sh "ecosystem-explorer/public/data/$eco")
             if [ "$expected" != "$actual" ]; then
@@ -84,11 +101,14 @@ jobs:
           done
 
       - name: Archives round trip over an emptied tree
+        env:
+          ECOSYSTEMS: ${{ steps.ecosystems.outputs.all }}
         run: |
           set -euo pipefail
           cp -a ecosystem-explorer/public/data "${RUNNER_TEMP}/built-tree"
-          .github/scripts/unpack-archives.sh "${RUNNER_TEMP}/archives"
-          for eco in collector configuration javaagent; do
+          read -ra ecosystems <<< "$ECOSYSTEMS"
+          .github/scripts/unpack-archives.sh "${RUNNER_TEMP}/archives" "${ecosystems[@]}"
+          for eco in "${ecosystems[@]}"; do
             # Compare against the built tree, never against HEAD: this workflow runs on builder and
             # registry pull requests, which legitimately produce output that differs from HEAD.
             diff -r --no-dereference "${RUNNER_TEMP}/built-tree/$eco" "ecosystem-explorer/public/data/$eco"
@@ -104,9 +124,10 @@ jobs:
           # this step would overwrite it with fabricated values while later steps still run.
           MANIFEST: ecosystem-explorer/public/data-manifest-probe.json
           PLAN: ${{ runner.temp }}/archives/archive-plan.json
+          ECOSYSTEMS: ${{ steps.ecosystems.outputs.all }}
         run: |
           set -euo pipefail
-          for eco in collector configuration javaagent; do
+          for eco in $ECOSYSTEMS; do
             digest=$(jq -r --arg e "$eco" '.[$e].content_digest' "$PLAN")
             tag=$(jq -r --arg e "$eco" '.[$e].release_tag' "$PLAN")
             uv run python -m explorer_db_builder.data_manifest --manifest "$MANIFEST" \
@@ -116,7 +137,7 @@ jobs:
           done
           (cd ecosystem-explorer && bunx prettier --check public/data-manifest-probe.json --ignore-path ../.prettierignore)
 
-          # Rewriting one block must leave the other two byte-identical.
+          # Rewriting one block must leave every other block byte-identical.
           cp "$MANIFEST" "${RUNNER_TEMP}/manifest-before.json"
           before=$(sha256sum "$MANIFEST" | cut -d' ' -f1)
           uv run python -m explorer_db_builder.data_manifest --manifest "$MANIFEST" \
@@ -127,8 +148,8 @@ jobs:
             echo "::error::the manifest did not change when javaagent was rewritten"
             exit 1
           fi
-          diff <(jq -S '.ecosystems.collector, .ecosystems.configuration' "${RUNNER_TEMP}/manifest-before.json") \
-               <(jq -S '.ecosystems.collector, .ecosystems.configuration' "$MANIFEST")
+          diff <(jq -S '.ecosystems | del(.javaagent)' "${RUNNER_TEMP}/manifest-before.json") \
+               <(jq -S '.ecosystems | del(.javaagent)' "$MANIFEST")
 
           # The integration suite runs next; leave the tree as this job found it.
           rm -f "$MANIFEST"

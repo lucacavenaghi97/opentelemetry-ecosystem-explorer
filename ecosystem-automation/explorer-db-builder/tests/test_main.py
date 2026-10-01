@@ -15,11 +15,14 @@
 """Tests for main entry point."""
 
 import json
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import explorer_db_builder.main as builder_main
 import pytest
 from explorer_db_builder.database_writer import DatabaseWriter
+from explorer_db_builder.ecosystems import ECOSYSTEMS
 from explorer_db_builder.main import (
     get_release_versions,
     process_version,
@@ -813,6 +816,30 @@ class TestRunBuilderOrchestrator:
         mock_java.assert_called_once()
         mock_config.assert_called_once()
         mock_collector.assert_called_once()
+
+
+def test_every_pipeline_is_an_archived_ecosystem():
+    # emit_archives packs only ECOSYSTEMS, so a pipeline added to run_builder without a matching
+    # entry would build output that never ships. Pipelines are found by their run_<name>_builder name.
+    names = sorted(name for name in dir(builder_main) if name.startswith("run_") and name.endswith("_builder"))
+    names.remove("run_builder")
+
+    with ExitStack() as stack:
+        pipelines = {name: stack.enter_context(patch.object(builder_main, name, return_value=0)) for name in names}
+
+        assert run_builder(ecosystem="all") == 0
+        assert [name for name, mock in pipelines.items() if not mock.called] == []
+        assert len(pipelines) == len(ECOSYSTEMS)
+
+        selected = set()
+        for ecosystem in ECOSYSTEMS:
+            for mock in pipelines.values():
+                mock.reset_mock()
+            run_builder(ecosystem=ecosystem)
+            called = [name for name, mock in pipelines.items() if mock.called]
+            assert len(called) == 1, f"{ecosystem} ran {called}"
+            selected.add(called[0])
+        assert selected == set(pipelines)
 
 
 @patch("explorer_db_builder.main.run_builder", return_value=0)

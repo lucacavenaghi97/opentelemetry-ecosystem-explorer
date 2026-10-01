@@ -1,21 +1,27 @@
 #!/usr/bin/env bash
-# Replace the three generated directories with the contents of their archives.
+# Replace each named ecosystem's generated directory with the contents of its archive.
 #
 # The directories are emptied first: unpacking over the existing tree would hide files the archive
 # omits, which is the failure that matters.
 set -euo pipefail
 
-if [ "$#" -ne 1 ]; then
-  echo "usage: $0 <archive-directory>" >&2
+if [ "$#" -lt 2 ]; then
+  echo "usage: $0 <archive-directory> <ecosystem>..." >&2
   exit 2
 fi
 
 archives="$1"
+shift
 
-# Validate every archive before deleting anything. Without this the script removes all three
+# Validate every archive before deleting anything. Without this the script removes the earlier
 # directories and only then discovers that an archive is missing or corrupt, which destroys the
 # tree it was asked to replace.
-for eco in collector configuration javaagent; do
+for eco in "$@"; do
+  # Each name becomes an rm -rf target below, so anything but a plain directory name is refused.
+  if ! [[ "$eco" =~ ^[a-z][a-z0-9-]*$ ]]; then
+    echo "$0: invalid ecosystem name '$eco'" >&2
+    exit 2
+  fi
   if [ ! -f "$archives/$eco.tar.gz" ]; then
     echo "$0: missing archive $archives/$eco.tar.gz" >&2
     exit 1
@@ -26,7 +32,7 @@ for eco in collector configuration javaagent; do
   fi
 done
 
-for eco in collector configuration javaagent; do
+for eco in "$@"; do
   target="ecosystem-explorer/public/data/$eco"
   rm -rf "$target"
   mkdir -p "$target"

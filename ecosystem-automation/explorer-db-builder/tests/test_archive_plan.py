@@ -19,12 +19,11 @@ import json
 from explorer_db_builder.archive_plan import PLAN_FILENAME, emit_archives
 from explorer_db_builder.archive_writer import release_tag, tree_digest
 from explorer_db_builder.data_manifest import update_entry, write_manifest
-
-ECOSYSTEM_NAMES = ("collector", "configuration", "javaagent")
+from explorer_db_builder.ecosystems import ECOSYSTEMS
 
 
 def build_data_root(root):
-    for ecosystem in ECOSYSTEM_NAMES:
+    for ecosystem in ECOSYSTEMS:
         directory = root / ecosystem
         directory.mkdir(parents=True)
         (directory / f"{ecosystem}.json").write_text(ecosystem)
@@ -39,7 +38,7 @@ def test_emit_archives_writes_one_archive_and_a_plan_entry_per_ecosystem(tmp_pat
 
     assert exit_code == 0
     plan = json.loads((output / PLAN_FILENAME).read_text())
-    assert sorted(plan) == list(ECOSYSTEM_NAMES)
+    assert sorted(plan) == list(ECOSYSTEMS)
     for ecosystem, entry in plan.items():
         assert (output / f"{ecosystem}.tar.gz").is_file()
         assert entry["asset"] == f"{ecosystem}.tar.gz"
@@ -91,7 +90,7 @@ def test_emit_archives_is_deterministic(tmp_path):
     emit_archives(tmp_path / "first", data_root=data_root, manifest_path=tmp_path / "absent.json")
     emit_archives(tmp_path / "second", data_root=data_root, manifest_path=tmp_path / "absent.json")
 
-    for ecosystem in ECOSYSTEM_NAMES:
+    for ecosystem in ECOSYSTEMS:
         first = (tmp_path / "first" / f"{ecosystem}.tar.gz").read_bytes()
         second = (tmp_path / "second" / f"{ecosystem}.tar.gz").read_bytes()
         assert first == second
