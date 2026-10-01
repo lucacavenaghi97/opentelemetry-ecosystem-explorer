@@ -33,10 +33,10 @@ def build_tree(root: Path, files: dict[str, str]) -> Path:
 
 
 def test_relative_files_sorts_on_encoded_bytes(tmp_path):
-    build_tree(tmp_path, {"b/two.json": "2", "a/one.json": "1", "A/zero.json": "0"})
+    build_tree(tmp_path, {"c/two.json": "2", "a/one.json": "1", "B/zero.json": "0"})
 
-    # Uppercase sorts before lowercase in byte order; a locale-aware sort would not agree.
-    assert relative_files(tmp_path) == ["A/zero.json", "a/one.json", "b/two.json"]
+    # Uppercase sorts before lowercase in byte order; a locale-aware sort would give a, B, c.
+    assert relative_files(tmp_path) == ["B/zero.json", "a/one.json", "c/two.json"]
 
 
 def test_relative_files_skips_directories_and_symlinks(tmp_path):
